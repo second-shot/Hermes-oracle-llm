@@ -1,0 +1,24 @@
+{
+  "primary_model": "local",
+  "cloud_enabled": false,
+  "routing": {
+    "vision": "cloud",
+    "text_reasoning": "local",
+    "coding": "local",
+    "automation": "local",
+    "memory": "local",
+    "retrieval": "local"
+  },
+  "limits": {
+    "max_retries_local": 2,
+    "max_retries_cloud": 1,
+    "max_tokens": {
+      "text_reasoning": 100,
+      "coding": 200,
+      "automation": 50,
+      "memory": 50,
+      "retrieval": 50,
+      "vision": 150
+    }
+  }
+}

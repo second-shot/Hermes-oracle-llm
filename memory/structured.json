@@ -1,0 +1,9 @@
+{
+  "text_reasoning": {
+    "result": "The reasoner's memory contains the answer to the question \"What is 2+2?\" because they identified the question and broke it down into its parts. They then identified the parts and determined the answer. The reasoner's memory contains the answer, \"4.\"",
+    "cache": "exact_hit"
+  },
+  "coding": {
+    "result": "Here's a Pyhton function to add two numbers:\n\n```python\ndef add_numbers(num1, num2):\n    \"\"\"\n    Add two numbers and return the sum.\n\n    Args:\n        num1 (int): The first number.\n        num2 (int): The second number.\n\n    Returns:\n        int: The sum of num1 and num2.\n    \"\"\"\n    return num1 + num2\n```\n\nHere's how you can use this function:\n\n```python\nnum1 = 2\nnum2 = 2\nresult = add_numbers(num1, num2)\nprint(f\"The sum of {num1} and {num2} is {result}\")\n```\n\nOutput:\n```\nThe sum of 2 and 2 is 4\n```\n\nThis function uses the `exact_hit` cache to ensure"
+  }
+}
