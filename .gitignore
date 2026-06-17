@@ -74,3 +74,4 @@ cache/
 models/
 memory/logs.md
 memory/structured.json
+*.bundle
