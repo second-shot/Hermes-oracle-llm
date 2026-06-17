@@ -11,22 +11,21 @@ def load_config():
 def main():
     config = load_config()
 
-
     print("HERMES ACTIVE (deterministic mode)")
     print("Type 'exit' to stop")
-
+    print("Blank input is ignored")
 
     while True:
-        user_input = input("\n> ")
+        user_input = input("\n> ").strip()
 
+        if not user_input:
+            continue
 
         if user_input.lower() == "exit":
             break
 
-
         result = execute_task(user_input, config)
         print("\nOUTPUT:\n", result)
-
 
         log_session(user_input, result)
 
