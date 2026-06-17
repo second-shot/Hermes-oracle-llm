@@ -1,10 +1,16 @@
 {
-  "primary_model": "local",
-  "cloud_enabled": false,
+  "primary_model": "openai",
+  "cloud_enabled": true,
+  "llm": {
+    "provider": "openai",
+    "model": "gpt-4",
+    "temperature": 0.7,
+    "api_key": ""
+  },
   "routing": {
     "vision": "cloud",
-    "text_reasoning": "local",
-    "coding": "local",
+    "text_reasoning": "cloud",
+    "coding": "cloud",
     "automation": "local",
     "memory": "local",
     "retrieval": "local"

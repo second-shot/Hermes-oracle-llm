@@ -1,5 +1,7 @@
 # Hermes currently runs in deterministic stub mode.
 # Add provider dependencies only when the provider is enabled.
+openai>=1.0.0
+python-dotenv>=0.21.0
 # Example future options:
 # mlx-lm
 # requests

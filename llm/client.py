@@ -1,4 +1,9 @@
 import os
+from dotenv import load_dotenv
+from openai import OpenAI, APIError
+
+# Load environment variables from a .env file if present
+load_dotenv()
 
 
 DEFAULT_PROVIDER = "stub"
@@ -80,6 +85,64 @@ def _ollama_response(prompt, config):
     )
 
 
+def _openai_response(prompt, config):
+    try:
+        # Priority for API key: config.llm.api_key -> OPENAI_API_KEY -> HERMES_OPENAI_API_KEY
+        api_key = (
+            config.get("llm", {}).get("api_key")
+            or os.environ.get("OPENAI_API_KEY")
+            or os.environ.get("HERMES_OPENAI_API_KEY")
+        )
+
+        if not api_key:
+            return _stub_response(
+                prompt,
+                "OpenAI provider selected but no API key configured. Set 'llm.api_key' in config.json or the OPENAI_API_KEY environment variable (or add a .env file).",
+            )
+
+        client = OpenAI(api_key=api_key)
+        task = _compressed_task(prompt)
+        
+        # Build the message from compressed task
+        messages = [
+            {
+                "role": "system",
+                "content": "You are Hermes, an intelligent task routing and automation system. Provide clear, actionable responses."
+            },
+            {
+                "role": "user",
+                "content": task.get("compressed_prompt", task.get("goal", ""))
+            }
+        ]
+        
+        model = config.get("llm", {}).get("model", "gpt-4")
+        temperature = config.get("llm", {}).get("temperature", 0.7)
+        
+        response = client.chat.completions.create(
+            model=model,
+            messages=messages,
+            temperature=temperature,
+            max_tokens=config.get("limits", {}).get("max_tokens", {}).get("text_reasoning", 100),
+        )
+        
+        result = response.choices[0].message.content
+        
+        return {
+            "result": result,
+            "meta": {
+                "mode": "openai",
+                "provider": "openai",
+                "model": model,
+                "tokens_used": response.usage.total_tokens,
+            },
+        }
+    
+    except APIError as e:
+        return _stub_response(prompt, f"OpenAI API error: {str(e)}")
+    except Exception as e:
+        return _stub_response(prompt, f"OpenAI integration error: {str(e)}")
+
+
 def call_model(prompt, route, config):
     if route != "local":
         return _stub_response(prompt, f"route '{route}' is not implemented")
@@ -88,6 +151,8 @@ def call_model(prompt, route, config):
 
     if provider == "stub":
         return _stub_response(prompt)
+    if provider == "openai":
+        return _openai_response(prompt, config)
     if provider == "mlx":
         return _mlx_response(prompt, config)
     if provider == "openrouter":
