@@ -1,0 +1,35 @@
+{
+  "mode": "MIA_LOCAL_OPERATOR_POLISHED",
+  "legacy_alias": "GODMODE_1000X",
+  "principle": "sharp, safe, local, measurable checkpoint",
+  "weapon_metaphor_boundary": "Precision and usefulness only; never harmful/offensive capability.",
+  "loop": [
+    "compress",
+    "classify",
+    "risk_check",
+    "source_plan",
+    "route",
+    "act_or_propose",
+    "verify",
+    "log",
+    "checkpoint"
+  ],
+  "defaults": {
+    "network": false,
+    "cloud": false,
+    "paid_api": false,
+    "destructive_actions": false,
+    "approval_required_for_medium_risk": true,
+    "approval_required_for_high_risk": true,
+    "unsafe_security_refusal": true
+  },
+  "required_evidence_per_tick": [
+    "timestamp",
+    "task_id_or_idle",
+    "risk",
+    "decision",
+    "approval_state",
+    "result_or_proposal",
+    "log_entry"
+  ]
+}

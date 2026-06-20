@@ -1,0 +1,54 @@
+{
+  "version": "1.0.0",
+  "ranking_rule": "Higher trust wins. Local and official sources outrank AI/social guesses. Conflicts lower confidence.",
+  "sources": [
+    {
+      "id": "source.local.repo",
+      "trust": 10,
+      "network_required": false,
+      "approval_required": false
+    },
+    {
+      "id": "source.local.data",
+      "trust": 9,
+      "network_required": false,
+      "approval_required": false
+    },
+    {
+      "id": "source.manual.user",
+      "trust": 8,
+      "network_required": false,
+      "approval_required": false
+    },
+    {
+      "id": "source.github.repo",
+      "trust": 9,
+      "network_required": true,
+      "approval_required": true
+    },
+    {
+      "id": "source.official.docs",
+      "trust": 9,
+      "network_required": true,
+      "approval_required": true
+    },
+    {
+      "id": "source.market.public",
+      "trust": 6,
+      "network_required": true,
+      "approval_required": true
+    },
+    {
+      "id": "source.social.trends",
+      "trust": 4,
+      "network_required": true,
+      "approval_required": true
+    },
+    {
+      "id": "source.ai.generated",
+      "trust": 3,
+      "network_required": false,
+      "approval_required": true
+    }
+  ]
+}

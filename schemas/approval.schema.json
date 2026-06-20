@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MIA Approval Store",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "task_id",
+      "created_at",
+      "risk",
+      "reason",
+      "status"
+    ],
+    "properties": {
+      "task_id": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "risk": {
+        "type": "string",
+        "enum": [
+          "medium",
+          "high"
+        ]
+      },
+      "reason": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "approved",
+          "rejected"
+        ]
+      },
+      "approved_at": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  }
+}

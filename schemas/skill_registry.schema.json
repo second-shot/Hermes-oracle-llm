@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MIA Skill Registry",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "domain",
+      "description",
+      "risk",
+      "requires_approval",
+      "network_allowed",
+      "status"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "domain": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "inputs": {
+        "type": "array"
+      },
+      "outputs": {
+        "type": "array"
+      },
+      "risk": {
+        "type": "string",
+        "enum": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "requires_approval": {
+        "type": "boolean"
+      },
+      "network_allowed": {
+        "type": "boolean"
+      },
+      "tools": {
+        "type": "array"
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "MIA Source Registry",
+  "type": "array",
+  "items": {
+    "type": "object",
+    "required": [
+      "id",
+      "name",
+      "type",
+      "trust",
+      "cost",
+      "network_required",
+      "approval_required",
+      "allowed",
+      "notes"
+    ],
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "trust": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 10
+      },
+      "cost": {
+        "type": "string"
+      },
+      "network_required": {
+        "type": "boolean"
+      },
+      "approval_required": {
+        "type": "boolean"
+      },
+      "allowed": {
+        "type": "boolean"
+      },
+      "notes": {
+        "type": "string"
+      }
+    },
+    "additionalProperties": true
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "version": "1.0.0",
+  "rules": [
+    {
+      "risk": "low",
+      "requires_approval": false,
+      "allowed_action": "safe_local_planning_or_logging"
+    },
+    {
+      "risk": "medium",
+      "requires_approval": true,
+      "allowed_action": "proposal_until_approved"
+    },
+    {
+      "risk": "high",
+      "requires_approval": true,
+      "allowed_action": "proposal_only_manual_boundary"
+    },
+    {
+      "risk": "unsafe_security",
+      "requires_approval": false,
+      "allowed_action": "refuse_and_offer_defensive_alternative"
+    }
+  ],
+  "always_require_approval_for": [
+    "network",
+    "cloud",
+    "paid_api",
+    "git_push",
+    "install_dependency",
+    "delete_or_move_files",
+    "spending_or_payment",
+    "messaging_or_email",
+    "upload_or_publish",
+    "credential_or_secret_handling"
+  ],
+  "never_execute": [
+    "credential_theft",
+    "phishing",
+    "malware",
+    "ransomware",
+    "spyware",
+    "keylogger",
+    "persistence",
+    "evasion",
+    "exfiltration",
+    "unauthorised_access",
+    "hiding_tracks"
+  ]
+}

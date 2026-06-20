@@ -1,0 +1,39 @@
+{
+  "version": "1.0.0",
+  "allowed_cli_commands": [
+    "status",
+    "add",
+    "tick",
+    "run-once",
+    "loop",
+    "approve",
+    "complete",
+    "log",
+    "character",
+    "rights",
+    "score",
+    "bonus",
+    "level-check",
+    "skills",
+    "sources",
+    "route",
+    "best",
+    "source-plan",
+    "security",
+    "ethical-check",
+    "threat-model",
+    "secret-scan",
+    "harden-plan",
+    "security-check"
+  ],
+  "network_commands_allowed_by_default": false,
+  "destructive_shell_patterns_forbidden": [
+    "Remove-Item -Recurse -Force",
+    "rm -rf",
+    "del /s /q",
+    "Invoke-WebRequest",
+    "curl ",
+    "wget ",
+    "git push --force"
+  ]
+}
