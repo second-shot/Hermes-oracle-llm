@@ -75,3 +75,4 @@ models/
 memory/logs.md
 memory/structured.json
 *.bundle
+.mia_state/ 
