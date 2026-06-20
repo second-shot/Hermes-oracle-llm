@@ -1,0 +1,90 @@
+[
+  {
+    "id": "source.local.repo",
+    "name": "Local Repository",
+    "type": "local",
+    "trust": 10,
+    "cost": "free",
+    "network_required": false,
+    "approval_required": false,
+    "allowed": true,
+    "notes": "Code and files in repo."
+  },
+  {
+    "id": "source.local.data",
+    "name": "Local Data Files",
+    "type": "file",
+    "trust": 9,
+    "cost": "free",
+    "network_required": false,
+    "approval_required": false,
+    "allowed": true,
+    "notes": "Hermes project data."
+  },
+  {
+    "id": "source.manual.user",
+    "name": "User Input",
+    "type": "manual",
+    "trust": 8,
+    "cost": "free",
+    "network_required": false,
+    "approval_required": false,
+    "allowed": true,
+    "notes": "Info provided by MAXI."
+  },
+  {
+    "id": "source.github.repo",
+    "name": "GitHub Repository",
+    "type": "github",
+    "trust": 9,
+    "cost": "free",
+    "network_required": true,
+    "approval_required": true,
+    "allowed": true,
+    "notes": "Repo state with review."
+  },
+  {
+    "id": "source.official.docs",
+    "name": "Official Documentation",
+    "type": "web",
+    "trust": 9,
+    "cost": "free",
+    "network_required": true,
+    "approval_required": true,
+    "allowed": true,
+    "notes": "Official docs only."
+  },
+  {
+    "id": "source.market.public",
+    "name": "Public Market Data",
+    "type": "web",
+    "trust": 6,
+    "cost": "free/unknown",
+    "network_required": true,
+    "approval_required": true,
+    "allowed": true,
+    "notes": "Pricing evidence, not truth."
+  },
+  {
+    "id": "source.social.trends",
+    "name": "Social Trends",
+    "type": "web",
+    "trust": 4,
+    "cost": "free/unknown",
+    "network_required": true,
+    "approval_required": true,
+    "allowed": true,
+    "notes": "Trend signals only."
+  },
+  {
+    "id": "source.ai.generated",
+    "name": "AI Generated",
+    "type": "manual",
+    "trust": 3,
+    "cost": "variable",
+    "network_required": false,
+    "approval_required": true,
+    "allowed": true,
+    "notes": "Hypothesis only."
+  }
+]

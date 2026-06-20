@@ -1,0 +1,58 @@
+[
+  {
+    "id": "security.threat_model",
+    "name": "Threat Model",
+    "risk": "low",
+    "requires_approval": false,
+    "network_allowed": false,
+    "description": "Identify assets, attackers, entry points, trust boundaries, risks, mitigations."
+  },
+  {
+    "id": "security.repo_hardening",
+    "name": "Repo Hardening",
+    "risk": "medium",
+    "requires_approval": true,
+    "network_allowed": false,
+    "description": "Inspect repo for exposed secrets, weak configs, unsafe permissions, .gitignore gaps."
+  },
+  {
+    "id": "security.secret_scan",
+    "name": "Secret Scan",
+    "risk": "medium",
+    "requires_approval": true,
+    "network_allowed": false,
+    "description": "Search local repo for accidental secrets and mask findings."
+  },
+  {
+    "id": "security.dependency_review",
+    "name": "Dependency Review",
+    "risk": "medium",
+    "requires_approval": true,
+    "network_allowed": true,
+    "description": "Review dependency files for risky packages. Network only with approval."
+  },
+  {
+    "id": "security.safe_vuln_explain",
+    "name": "Safe Vulnerability Explanation",
+    "risk": "low",
+    "requires_approval": false,
+    "network_allowed": false,
+    "description": "Explain vulnerabilities defensively and suggest remediation."
+  },
+  {
+    "id": "security.ctf_lab",
+    "name": "CTF Lab",
+    "risk": "medium",
+    "requires_approval": true,
+    "network_allowed": false,
+    "description": "Allow toy/lab-only security learning."
+  },
+  {
+    "id": "security.incident_notes",
+    "name": "Incident Notes",
+    "risk": "low",
+    "requires_approval": false,
+    "network_allowed": false,
+    "description": "Create calm incident notes, evidence checklist, timeline, defensive next actions."
+  }
+]
