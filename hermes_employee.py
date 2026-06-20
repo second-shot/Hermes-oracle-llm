@@ -562,7 +562,9 @@ def secret_patterns() -> List[Tuple[str, re.Pattern[str]]]:
     return [
         ("OpenAI-like key", re.compile(r"\bsk-[A-Za-z0-9_\-]{12,}\b")),
         ("GitHub token-like", re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{20,}\b")),
-        ("Generic API key assignment", re.compile(r"(?i)(api[_-]?key|secret|token|password)\s*[:=]\s*['\"]?([^'\"\s]{8,})")),
+        # Keep the generic assignment detector focused on token-like values so it does not
+        # flag ordinary code such as `secret = match.group(2)`.
+        ("Generic API key assignment", re.compile(r"(?i)\b(api[_-]?key|secret|token|password)\b\s*[:=]\s*['\"]?([A-Za-z0-9_\-]{8,})")),
         ("Private key marker", re.compile(r"-----BEGIN (RSA |OPENSSH |EC |DSA )?PRIVATE KEY-----")),
     ]
 
