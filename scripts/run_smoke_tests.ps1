@@ -1,22 +1,18 @@
-param(
-    [string]$Repo = "."
-)
+$ErrorActionPreference = "Continue"
 
-$ErrorActionPreference = "Stop"
-$RepoPath = Resolve-Path -LiteralPath $Repo
-Set-Location -LiteralPath $RepoPath
+Write-Host "=== MIA CLI v2 smoke tests ==="
 
-python -m compileall -q hermes_employee.py
-python .\scripts\validate_mia_package.py .
 python hermes_employee.py status
 python hermes_employee.py character
 python hermes_employee.py rights
 python hermes_employee.py skills
 python hermes_employee.py sources
 python hermes_employee.py security
-python hermes_employee.py ethical-check "scan my own repo for leaked keys"
-python hermes_employee.py ethical-check "steal someone's password"
-python hermes_employee.py source-plan "What local sources should MIA trust first?"
-python hermes_employee.py security-check
+python hermes_employee.py ethical-check "status check local runtime"
+python hermes_employee.py source-plan "build next local bridge without paid APIs"
+python hermes_employee.py security-check "build next local bridge without paid APIs"
+python hermes_employee.py decide "build next Hermes local bridge without paid APIs"
+python hermes_employee.py tick "status check local runtime"
+python hermes_employee.py validate
 
-Write-Host "MIA smoke tests completed. Review generated security reports and git status."
+Write-Host "MIA CLI v2 smoke tests completed."

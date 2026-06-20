@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-Hermes Employee / MIA Local Operator Runtime
-Local-first CLI entrypoint for the Hermes overlay.
-No paid API keys. No cloud calls. No shell execution.
+Hermes Employee / MIA GODMODE Local Operator CLI v2.
+Local-first, no paid API dependency, guarded by policy files.
+This CLI classifies, validates, records events, and surfaces next actions.
+It does not execute shell commands, call cloud APIs, or print secrets.
 """
 from __future__ import annotations
 
@@ -28,250 +29,332 @@ REQUIRED_FILES = [
     "skills/godmode_core_polished.json",
     "docs/MIA_OPERATOR_RUNBOOK.md",
     "docs/SECURITY_GUARDRAILS.md",
+    "data/employee/tasks.json",
 ]
 
 DANGEROUS_TERMS = [
-    "delete",
-    "format",
-    "wipe",
-    "rm -rf",
-    "del /s",
-    "rmdir",
-    "shutdown",
-    "password",
-    "token",
-    "api key",
-    "secret",
-    "credential",
-    "private key",
-    "send money",
-    "bank transfer",
-    "execute shell",
-    "run command",
+    "delete", "wipe", "format", "rm -rf", "secret", "password", "token", "key",
+    "credential", "exfiltrate", "steal", "bypass", "exploit", "malware", "sudo",
+    "admin", "registry", "system32", "network scan", "port scan",
 ]
-
-FAST_TERMS = ["status", "list", "show", "summarise", "summarize", "check", "read"]
-BUILD_TERMS = ["build", "create", "implement", "write", "patch", "fix", "test", "commit", "push"]
+BUILD_TERMS = ["build", "create", "implement", "patch", "install", "connect", "integrate", "fix"]
+FAST_TERMS = ["status", "check", "list", "show", "validate", "read", "summary"]
+SOURCE_TERMS = ["source", "evidence", "docs", "policy", "schema", "readme", "git", "commit"]
 
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def load_json(relative_path: str, default: Any = None) -> Any:
-    path = ROOT / relative_path
+def read_json(rel_path: str, default: Any = None) -> Any:
+    path = ROOT / rel_path
     if not path.exists():
         return default
     try:
         return json.loads(path.read_text(encoding="utf-8"))
-    except Exception as exc:  # keep CLI alive; report bad JSON safely
-        return {"_error": f"Failed to read {relative_path}: {exc}"}
+    except Exception:
+        return default
 
 
-def emit(data: Dict[str, Any]) -> None:
+def write_json(path: Path, data: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+
+
+def print_json(data: Any) -> None:
     print(json.dumps(data, indent=2, ensure_ascii=False))
 
 
 def append_event(event: Dict[str, Any]) -> None:
-    STATE_DIR.mkdir(exist_ok=True)
-    event.setdefault("timestamp", now_iso())
-    with EVENT_LOG.open("a", encoding="utf-8") as handle:
-        handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
+    event = {"timestamp": now_iso(), **event}
+    with EVENT_LOG.open("a", encoding="utf-8") as fh:
+        fh.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
-def file_report() -> List[Dict[str, Any]]:
-    return [
-        {
-            "path": rel,
-            "exists": (ROOT / rel).exists(),
-        }
-        for rel in REQUIRED_FILES
-    ]
+def ensure_task_store() -> None:
+    task_file = ROOT / "data/employee/tasks.json"
+    if not task_file.exists():
+        write_json(task_file, {"version": 1, "tasks": []})
 
 
-def command_status(_: argparse.Namespace) -> int:
-    files = file_report()
-    missing = [item["path"] for item in files if not item["exists"]]
-    emit(
-        {
-            "runtime": "hermes_employee",
-            "mode": "local_first",
-            "cloud": "disabled_by_default",
-            "paid_api_required": False,
-            "repo": str(ROOT),
-            "state_log": str(EVENT_LOG),
-            "required_files_ok": not missing,
-            "missing_files": missing,
-            "files": files,
-            "timestamp": now_iso(),
-        }
-    )
-    append_event({"type": "status", "ok": not missing, "missing": missing})
-    return 0 if not missing else 1
+def file_status() -> List[Dict[str, Any]]:
+    return [{"path": p, "exists": (ROOT / p).exists()} for p in REQUIRED_FILES]
 
 
-def command_character(_: argparse.Namespace) -> int:
-    skill = load_json("skills/godmode_core_polished.json", {})
-    emit(
-        {
-            "name": "MIA / GODMODE Local Operator",
-            "role": "tactical executor for Hermes",
-            "principles": [
-                "local-first",
-                "no paid API dependency",
-                "no secrets exposure",
-                "approval before risky actions",
-                "compress chaos into next action",
-                "preserve evidence before memory",
-            ],
-            "loaded_skill_file": bool(skill),
-            "skill_preview_keys": sorted(list(skill.keys()))[:20] if isinstance(skill, dict) else [],
-        }
-    )
-    append_event({"type": "character", "ok": True})
-    return 0
+def classify(text: str) -> Dict[str, Any]:
+    lowered = text.lower()
+    dangerous = [t for t in DANGEROUS_TERMS if t in lowered]
+    build = [t for t in BUILD_TERMS if t in lowered]
+    fast = [t for t in FAST_TERMS if t in lowered]
+    sources = [t for t in SOURCE_TERMS if t in lowered]
 
+    risk = "low"
+    approval_required = False
+    complexity_score = 1
+    route = "fast_local"
 
-def command_security(_: argparse.Namespace) -> int:
-    approval = load_json("policies/approval_policy.json", {})
-    allowlist = load_json("policies/command_allowlist.json", {})
-    risk = load_json("policies/risk_policy.json", {})
-    source_trust = load_json("policies/source_trust_policy.json", {})
-    emit(
-        {
-            "security_mode": "guarded_local",
-            "shell_execution": "disabled_in_this_cli",
-            "network_access": "not_performed_by_this_cli",
-            "cloud_access": "disabled_by_default",
-            "secrets_policy": "never_print_or_store_secrets",
-            "policies_loaded": {
-                "approval_policy": bool(approval),
-                "command_allowlist": bool(allowlist),
-                "risk_policy": bool(risk),
-                "source_trust_policy": bool(source_trust),
-            },
-            "policy_errors": {
-                name: value.get("_error")
-                for name, value in {
-                    "approval_policy": approval,
-                    "command_allowlist": allowlist,
-                    "risk_policy": risk,
-                    "source_trust_policy": source_trust,
-                }.items()
-                if isinstance(value, dict) and value.get("_error")
-            },
-        }
-    )
-    append_event({"type": "security", "ok": True})
-    return 0
-
-
-def classify_request(text: str) -> Dict[str, Any]:
-    lowered = text.lower().strip()
-    dangerous_hits = [term for term in DANGEROUS_TERMS if term in lowered]
-    fast_hits = [term for term in FAST_TERMS if term in lowered]
-    build_hits = [term for term in BUILD_TERMS if term in lowered]
-
-    if dangerous_hits:
+    if dangerous:
         risk = "high"
         approval_required = True
+        complexity_score = 5
         route = "approval_gate"
-    elif build_hits:
+    elif build:
         risk = "medium"
-        approval_required = False
+        complexity_score = 2
         route = "builder"
-    elif fast_hits:
+    elif sources:
         risk = "low"
-        approval_required = False
+        complexity_score = 2
+        route = "source_review"
+    elif fast:
         route = "fast_local"
-    else:
-        risk = "low"
-        approval_required = False
-        route = "clarify_or_plan"
-
-    complexity = min(10, max(1, len(text.split()) // 12 + len(build_hits) * 2 + len(dangerous_hits) * 4))
 
     return {
         "input": text,
         "route": route,
         "risk": risk,
         "approval_required": approval_required,
-        "complexity_score": complexity,
+        "complexity_score": complexity_score,
         "matched_terms": {
-            "dangerous": dangerous_hits,
-            "build": build_hits,
-            "fast": fast_hits,
+            "dangerous": dangerous,
+            "build": build,
+            "fast": fast,
+            "source": sources,
         },
-        "next_action": "refuse_auto_execution_and_request_approval" if approval_required else "prepare_local_next_step",
+        "next_action": "prepare_local_next_step" if not approval_required else "request_human_approval",
     }
+
+
+def command_status(_: argparse.Namespace) -> int:
+    ensure_task_store()
+    missing = [p for p in REQUIRED_FILES if not (ROOT / p).exists()]
+    payload = {
+        "runtime": "hermes_employee",
+        "version": "2.0-local-cli",
+        "mode": "local_first",
+        "cloud": "disabled_by_default",
+        "paid_api_required": False,
+        "repo": str(ROOT),
+        "state_log": str(EVENT_LOG),
+        "required_files_ok": not missing,
+        "missing_files": missing,
+        "files": file_status(),
+        "timestamp": now_iso(),
+    }
+    print_json(payload)
+    return 0 if not missing else 1
+
+
+def command_character(_: argparse.Namespace) -> int:
+    skill = read_json("skills/godmode_core_polished.json", {}) or {}
+    payload = {
+        "name": "MIA / GODMODE Local Operator",
+        "role": "tactical executor for Hermes",
+        "principles": [
+            "local-first",
+            "no paid API dependency",
+            "no secrets exposure",
+            "approval before risky actions",
+            "compress chaos into next action",
+            "preserve evidence before memory",
+        ],
+        "loaded_skill_file": bool(skill),
+        "skill_preview_keys": sorted(list(skill.keys()))[:12] if isinstance(skill, dict) else [],
+    }
+    print_json(payload)
+    return 0
+
+
+def command_security(_: argparse.Namespace) -> int:
+    policies = {
+        "approval_policy": read_json("policies/approval_policy.json", None) is not None,
+        "command_allowlist": read_json("policies/command_allowlist.json", None) is not None,
+        "risk_policy": read_json("policies/risk_policy.json", None) is not None,
+        "source_trust_policy": read_json("policies/source_trust_policy.json", None) is not None,
+    }
+    payload = {
+        "security_mode": "guarded_local",
+        "shell_execution": "disabled_in_this_cli",
+        "network_access": "not_performed_by_this_cli",
+        "cloud_access": "disabled_by_default",
+        "secrets_policy": "never_print_or_store_secrets",
+        "policies_loaded": policies,
+        "policy_errors": {},
+    }
+    print_json(payload)
+    return 0 if all(policies.values()) else 1
 
 
 def command_tick(args: argparse.Namespace) -> int:
     text = " ".join(args.text).strip() if args.text else "status check local runtime"
-    result = classify_request(text)
-    emit(
-        {
-            "tick": "ok",
-            "runtime": "hermes_employee",
-            "decision": result,
-            "note": "This CLI classifies and records intent. It does not execute shell commands or call paid APIs.",
-        }
-    )
-    append_event({"type": "tick", "decision": result})
+    decision = classify(text)
+    event = {"kind": "tick", "runtime": "hermes_employee", "decision": decision}
+    append_event(event)
+    print_json({
+        "tick": "ok",
+        "runtime": "hermes_employee",
+        "decision": decision,
+        "note": "This CLI classifies and records intent. It does not execute shell commands or call paid APIs.",
+    })
+    return 0
+
+
+def command_decide(args: argparse.Namespace) -> int:
+    text = " ".join(args.text).strip() if args.text else "decide next local action"
+    decision = classify(text)
+    append_event({"kind": "decision", "decision": decision})
+    print_json({"decision": decision})
     return 0
 
 
 def command_validate(_: argparse.Namespace) -> int:
-    missing = [item["path"] for item in file_report() if not item["exists"]]
+    ensure_task_store()
+    missing = [p for p in REQUIRED_FILES if not (ROOT / p).exists()]
     bad_json = []
-    for rel in [
-        "policies/approval_policy.json",
-        "policies/command_allowlist.json",
-        "policies/risk_policy.json",
-        "policies/source_trust_policy.json",
-        "schemas/task.schema.json",
-        "schemas/event.schema.json",
-        "schemas/approval.schema.json",
-        "skills/godmode_core_polished.json",
-    ]:
-        loaded = load_json(rel, {})
-        if isinstance(loaded, dict) and loaded.get("_error"):
-            bad_json.append({"path": rel, "error": loaded["_error"]})
+    for rel in [p for p in REQUIRED_FILES if p.endswith(".json")]:
+        path = ROOT / rel
+        if path.exists():
+            try:
+                json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                bad_json.append({"path": rel, "error": str(exc)})
+    payload = {"validate": "ok" if not missing and not bad_json else "fail", "missing": missing, "bad_json": bad_json}
+    print_json(payload)
+    return 0 if not missing and not bad_json else 1
 
-    ok = not missing and not bad_json
-    emit({"validate": "ok" if ok else "fail", "missing": missing, "bad_json": bad_json})
-    append_event({"type": "validate", "ok": ok, "missing": missing, "bad_json": bad_json})
-    return 0 if ok else 1
+
+def command_rights(_: argparse.Namespace) -> int:
+    approval = read_json("policies/approval_policy.json", {}) or {}
+    risk = read_json("policies/risk_policy.json", {}) or {}
+    payload = {
+        "rights": "guarded_local_operator",
+        "can": [
+            "classify local requests",
+            "read local policy/schema/skill files",
+            "write local event log under .mia_state",
+            "propose next actions",
+            "validate package integrity",
+        ],
+        "cannot": [
+            "run arbitrary shell commands",
+            "call paid APIs",
+            "print or store secrets",
+            "modify system files",
+            "perform network actions from this CLI",
+        ],
+        "approval_policy_loaded": bool(approval),
+        "risk_policy_loaded": bool(risk),
+    }
+    print_json(payload)
+    return 0
+
+
+def command_skills(_: argparse.Namespace) -> int:
+    skills_dir = ROOT / "skills"
+    items = []
+    if skills_dir.exists():
+        for path in sorted(skills_dir.glob("*.json")):
+            data = read_json(str(path.relative_to(ROOT)).replace("\\", "/"), {}) or {}
+            items.append({"file": str(path.relative_to(ROOT)).replace("\\", "/"), "keys": sorted(list(data.keys()))[:20] if isinstance(data, dict) else []})
+    print_json({"skills": items, "count": len(items)})
+    return 0
+
+
+def command_sources(_: argparse.Namespace) -> int:
+    source_policy = read_json("policies/source_trust_policy.json", {}) or {}
+    print_json({
+        "sources": "loaded" if source_policy else "missing",
+        "policy_file": "policies/source_trust_policy.json",
+        "top_level_keys": sorted(list(source_policy.keys())) if isinstance(source_policy, dict) else [],
+        "rule": "Prefer verified local repo evidence before memory. Keep raw evidence separate from curated memory.",
+    })
+    return 0 if source_policy else 1
+
+
+def command_ethical_check(args: argparse.Namespace) -> int:
+    text = " ".join(args.text).strip() if args.text else "status check"
+    decision = classify(text)
+    payload = {
+        "ethical_check": "pass" if decision["risk"] != "high" else "approval_required",
+        "risk": decision["risk"],
+        "approval_required": decision["approval_required"],
+        "blocked_by_default": decision["approval_required"],
+        "reason": "high-risk terms detected" if decision["approval_required"] else "local low-risk classification only",
+        "decision": decision,
+    }
+    print_json(payload)
+    return 0
+
+
+def command_source_plan(args: argparse.Namespace) -> int:
+    text = " ".join(args.text).strip() if args.text else "next local implementation"
+    payload = {
+        "source_plan": "local_evidence_first",
+        "input": text,
+        "order": [
+            "repo files",
+            "docs folder",
+            "policies folder",
+            "schemas folder",
+            "skills folder",
+            "git status/log",
+            "external web only with explicit need",
+        ],
+        "store": "write events to .mia_state only; commit code/config only",
+    }
+    print_json(payload)
+    return 0
+
+
+def command_security_check(args: argparse.Namespace) -> int:
+    text = " ".join(args.text).strip() if args.text else "status check"
+    decision = classify(text)
+    payload = {
+        "security_check": "pass" if not decision["approval_required"] else "approval_required",
+        "cloud_disabled": True,
+        "paid_api_required": False,
+        "shell_execution": "disabled_in_this_cli",
+        "decision": decision,
+    }
+    print_json(payload)
+    return 0
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Hermes Employee / MIA local operator runtime")
-    sub = parser.add_subparsers(dest="command")
+    parser = argparse.ArgumentParser(description="Hermes Employee / MIA local operator CLI")
+    sub = parser.add_subparsers(dest="command", required=True)
 
-    p_status = sub.add_parser("status", help="Show runtime and file status")
-    p_status.set_defaults(func=command_status)
+    for name, func in [
+        ("status", command_status),
+        ("character", command_character),
+        ("security", command_security),
+        ("validate", command_validate),
+        ("rights", command_rights),
+        ("skills", command_skills),
+        ("sources", command_sources),
+    ]:
+        p = sub.add_parser(name)
+        p.set_defaults(func=func)
 
-    p_character = sub.add_parser("character", help="Show MIA operator character")
-    p_character.set_defaults(func=command_character)
-
-    p_security = sub.add_parser("security", help="Show guardrail/security mode")
-    p_security.set_defaults(func=command_security)
-
-    p_tick = sub.add_parser("tick", help="Classify one local task/request")
-    p_tick.add_argument("text", nargs="*", help="Optional task text")
-    p_tick.set_defaults(func=command_tick)
-
-    p_validate = sub.add_parser("validate", help="Validate required overlay files")
-    p_validate.set_defaults(func=command_validate)
+    for name, func in [
+        ("tick", command_tick),
+        ("decide", command_decide),
+        ("ethical-check", command_ethical_check),
+        ("source-plan", command_source_plan),
+        ("security-check", command_security_check),
+    ]:
+        p = sub.add_parser(name)
+        p.add_argument("text", nargs="*")
+        p.set_defaults(func=func)
 
     return parser
 
 
 def main(argv: List[str] | None = None) -> int:
+    ensure_task_store()
     parser = build_parser()
     args = parser.parse_args(argv)
-    if not getattr(args, "command", None):
-        args = parser.parse_args(["status"])
     return int(args.func(args))
 
 
