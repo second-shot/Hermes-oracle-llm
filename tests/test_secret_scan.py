@@ -20,3 +20,11 @@ def test_secret_scan_detects_token_like_assignment(tmp_path, monkeypatch):
     assert len(findings) == 1
     assert findings[0]["type"] == "Generic API key assignment"
     assert findings[0]["file"] == "config.env"
+
+
+def test_secret_scan_ignores_placeholder_examples(tmp_path, monkeypatch):
+    monkeypatch.setattr(he, "ROOT", tmp_path)
+    placeholder_secret = "your-" + "godmode-" + "key"
+    (tmp_path / "docs.md").write_text(f"api_key = {placeholder_secret}\n", encoding="utf-8")
+
+    assert he.run_secret_scan() == []

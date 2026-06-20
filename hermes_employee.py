@@ -10,6 +10,7 @@ import argparse
 import json
 import os
 import re
+import py_compile
 import sys
 import time
 from datetime import datetime
@@ -486,6 +487,11 @@ def cmd_best(args: argparse.Namespace) -> None:
     print(best_action(args.text))
 
 
+def cmd_decide(args: argparse.Namespace) -> None:
+    text = " ".join(getattr(args, "text", [])).strip()
+    print(best_action(text))
+
+
 def cmd_source_plan(args: argparse.Namespace) -> None:
     sources = read_json(DATA_SOURCES / "source_registry.json", default_source_registry())
     local = [s for s in sources if not s["network_required"]]
@@ -585,6 +591,10 @@ def run_secret_scan() -> List[Dict[str, Any]]:
             for match in pattern.finditer(text):
                 raw = match.group(0)
                 secret = match.group(2) if label == "Generic API key assignment" and match.lastindex and match.lastindex >= 2 else raw
+                if label == "Generic API key assignment":
+                    lowered = secret.lower()
+                    if lowered.startswith(("your-", "your_", "example", "placeholder")):
+                        continue
                 findings.append({
                     "file": str(path.relative_to(ROOT)),
                     "type": label,
@@ -641,7 +651,10 @@ def cmd_security_check(args: argparse.Namespace) -> None:
     findings = run_secret_scan()
     secret_report = write_secret_report(findings)
     harden = harden_plan_text()
+    question = " ".join(getattr(args, "question", [])).strip()
     combined = f"# Security Check\n\nCreated: {now()}\n\n## Secret Scan\nFindings: {len(findings)}\n\n## Hardening Plan\n{harden}\n"
+    if question:
+        combined = f"# Security Check\n\nCreated: {now()}\n\nQuestion: {question}\n\n## Secret Scan\nFindings: {len(findings)}\n\n## Hardening Plan\n{harden}\n"
     (DATA_SECURITY / "security_report.md").write_text(combined, encoding="utf-8")
     score = load_security_score()
     score["secret_scans_run"] = int(score.get("secret_scans_run", 0)) + 1
@@ -649,6 +662,51 @@ def cmd_security_check(args: argparse.Namespace) -> None:
     save_security_score(score)
     append_log(f"- action: security_check\n- findings: {len(findings)}\n- report: data/security/security_report.md", security=True)
     print(combined)
+
+
+def validate_local_package() -> List[str]:
+    issues = []
+    try:
+        py_compile.compile(str(ROOT / "hermes_employee.py"), doraise=True)
+    except Exception as exc:
+        issues.append(f"hermes_employee.py compile failed: {exc}")
+
+    for path in [
+        DATA_EMPLOYEE / "tasks.json",
+        DATA_EMPLOYEE / "approvals.json",
+        DATA_EMPLOYEE / "heartbeat.json",
+        DATA_EMPLOYEE / "scoreboard.json",
+        DATA_SECURITY / "security_scoreboard.json",
+        DATA_SOURCES / "source_registry.json",
+        SKILLS_DIR / "skill_registry.json",
+    ]:
+        if path.exists():
+            try:
+                json.loads(path.read_text(encoding="utf-8"))
+            except Exception as exc:
+                issues.append(f"Invalid JSON {path.relative_to(ROOT)}: {exc}")
+
+    source = (ROOT / "hermes_employee.py").read_text(encoding="utf-8", errors="ignore")
+    required_commands = [
+        "status", "character", "security", "tick", "validate", "decide",
+        "rights", "skills", "sources", "ethical-check", "source-plan",
+        "security-check",
+    ]
+    missing = [cmd for cmd in required_commands if f'"{cmd}"' not in source and f"'{cmd}'" not in source]
+    if missing:
+        issues.append("Missing command names in parser/source: " + ", ".join(sorted(missing)))
+
+    return issues
+
+
+def cmd_validate(_: argparse.Namespace) -> None:
+    ensure_initial_files()
+    issues = validate_local_package()
+    if issues:
+        for issue in issues:
+            print(f"FAIL: {issue}")
+        raise SystemExit(1)
+    print("VALIDATE: OK")
 
 
 def default_skill_registry() -> List[Dict[str, Any]]:
@@ -720,7 +778,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("status").set_defaults(func=cmd_status)
     a = sub.add_parser("add"); a.add_argument("text"); a.set_defaults(func=cmd_add)
-    sub.add_parser("tick").set_defaults(func=cmd_tick)
+    a = sub.add_parser("tick"); a.add_argument("text", nargs="*"); a.set_defaults(func=cmd_tick)
     sub.add_parser("run-once").set_defaults(func=cmd_run_once)
     l = sub.add_parser("loop"); l.add_argument("--seconds", type=int, default=60); l.set_defaults(func=cmd_loop)
     a = sub.add_parser("approve"); a.add_argument("task_id"); a.set_defaults(func=cmd_approve)
@@ -735,13 +793,16 @@ def build_parser() -> argparse.ArgumentParser:
     sub.add_parser("sources").set_defaults(func=cmd_sources)
     a = sub.add_parser("route"); a.add_argument("text"); a.set_defaults(func=cmd_route)
     a = sub.add_parser("best"); a.add_argument("text"); a.set_defaults(func=cmd_best)
+    a = sub.add_parser("decide"); a.add_argument("text", nargs="*"); a.set_defaults(func=cmd_decide)
     a = sub.add_parser("source-plan"); a.add_argument("question"); a.set_defaults(func=cmd_source_plan)
     sub.add_parser("security").set_defaults(func=cmd_security)
     a = sub.add_parser("ethical-check"); a.add_argument("text"); a.set_defaults(func=cmd_ethical_check)
     a = sub.add_parser("threat-model"); a.add_argument("target"); a.set_defaults(func=cmd_threat_model)
     sub.add_parser("secret-scan").set_defaults(func=cmd_secret_scan)
     sub.add_parser("harden-plan").set_defaults(func=cmd_harden_plan)
-    sub.add_parser("security-check").set_defaults(func=cmd_security_check)
+    a = sub.add_parser("security-check"); a.add_argument("question", nargs="*"); a.set_defaults(func=cmd_security_check)
+    sub.add_parser("validate").set_defaults(func=cmd_validate)
+    sub.add_parser("validate-state").set_defaults(func=cmd_validate)
     return p
 
 

@@ -1,10 +1,10 @@
 {
-  "secret_scans_run": 5,
+  "secret_scans_run": 8,
   "threat_models_created": 0,
   "hardening_plans_created": 0,
   "unsafe_requests_refused": 1,
   "safe_alternatives_given": 1,
-  "security_reports_created": 2,
+  "security_reports_created": 3,
   "security_breaches": 0,
   "security_level": 0,
   "unlocked_security_bonuses": []
