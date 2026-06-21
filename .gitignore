@@ -75,5 +75,7 @@ models/
 memory/logs.md
 memory/structured.json
 *.bundle
-.mia_state/ 
 .mia_state/
+data/employee/*.tmp
+data/employee/runtime.lock
+oracle_v1/*.json
