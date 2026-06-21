@@ -17,5 +17,62 @@
       "confidence_rule": "Local and official sources outrank AI/social guesses. If sources conflict, lower confidence."
     },
     "created_at": "2026-06-20T19:13:25"
+  },
+  {
+    "question": "build local bridge",
+    "source_plan": {
+      "first_use_local": [
+        "source.local.repo",
+        "source.local.data",
+        "source.manual.user",
+        "source.ai.generated"
+      ],
+      "requires_approval_for_network": [
+        "source.github.repo",
+        "source.official.docs",
+        "source.market.public",
+        "source.social.trends"
+      ],
+      "confidence_rule": "Local and official sources outrank AI/social guesses. If sources conflict, lower confidence."
+    },
+    "created_at": "2026-06-21T01:18:45"
+  },
+  {
+    "question": "build local bridge",
+    "source_plan": {
+      "first_use_local": [
+        "source.local.repo",
+        "source.local.data",
+        "source.manual.user",
+        "source.ai.generated"
+      ],
+      "requires_approval_for_network": [
+        "source.github.repo",
+        "source.official.docs",
+        "source.market.public",
+        "source.social.trends"
+      ],
+      "confidence_rule": "Local and official sources outrank AI/social guesses. If sources conflict, lower confidence."
+    },
+    "created_at": "2026-06-21T20:10:33"
+  },
+  {
+    "question": "build local bridge",
+    "source_plan": {
+      "first_use_local": [
+        "source.local.repo",
+        "source.local.data",
+        "source.manual.user",
+        "source.ai.generated"
+      ],
+      "requires_approval_for_network": [
+        "source.github.repo",
+        "source.official.docs",
+        "source.market.public",
+        "source.social.trends"
+      ],
+      "confidence_rule": "Local and official sources outrank AI/social guesses. If sources conflict, lower confidence."
+    },
+    "created_at": "2026-06-21T20:11:44"
   }
 ]
