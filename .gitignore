@@ -7,3 +7,6 @@ logs/
 cache/
 data/employee/*.tmp
 data/employee/runtime.lock
+memory/logs.md
+memory/structured.json
+oracle_v1/*.json
