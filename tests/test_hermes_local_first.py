@@ -234,6 +234,31 @@ def test_local_client_uses_env_token_when_configured(monkeypatch: pytest.MonkeyP
     assert dict(requests[0].header_items())["Authorization"] == "Bearer test-token"
 
 
+def test_local_client_accepts_lm_api_token_alias(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests = []
+
+    def fake_urlopen(request, timeout=20):
+        requests.append(request)
+        if request.full_url.endswith("/models"):
+            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
+        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
+
+    monkeypatch.setenv("LM_API_TOKEN", "alias-token")
+    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+
+    result = llm_client._openai_compatible_local_response(
+        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
+        "lmstudio_windows",
+        {"base_url": "http://localhost:1234/v1", "env_key": "LM_STUDIO_API_TOKEN", "api_key": ""},
+        "qwen3-4b-instruct-q4",
+        {"temperature": 0.2},
+    )
+
+    assert result is not None
+    assert result["result"] == "Hermes is alive."
+    assert dict(requests[0].header_items())["Authorization"] == "Bearer alias-token"
+
+
 def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pytest.MonkeyPatch) -> None:
     timeouts = []
 

@@ -102,6 +102,10 @@ def _provider_api_token(provider_config):
         env_value = os.environ.get(env_key, "").strip()
         if env_value:
             return env_value
+        if env_key == "LM_STUDIO_API_TOKEN":
+            alias_value = os.environ.get("LM_API_TOKEN", "").strip()
+            if alias_value:
+                return alias_value
 
     api_key = str(provider_config.get("api_key", "")).strip()
     if api_key.lower() in PLACEHOLDER_LOCAL_API_KEYS:
