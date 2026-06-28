@@ -38,6 +38,12 @@ def execute_task(user_input, config):
 
     result = router.run_task(user_input, infer)
     if result.get("error"):
+        if result["error"] == "local-runtime-missing" and config.get("cloud_enabled") is True:
+            fallback = call_model(prompt, "local", config)
+            if fallback and fallback.get("result"):
+                response = {"result": fallback["result"], "cache": "miss"}
+                update_memory(compressed, response)
+                return response
         return {"error": result["error"], "message": result.get("message"), "cache": "miss"}
 
     response = {"result": result["result"], "cache": "hit" if result["source"] == "cache" else "miss"}
