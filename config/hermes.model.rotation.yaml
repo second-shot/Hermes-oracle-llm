@@ -45,7 +45,10 @@ providers:
     enabled: true
     type: openai_compatible
     base_url: "http://localhost:1234/v1"
-    api_key: "lm-studio"
+    api_key: ""
+    env_key: "LM_STUDIO_API_TOKEN"
+    model_discovery_timeout_seconds: 20
+    request_timeout_seconds: 120
     device: windows
     priority: 1
     cost: 0
@@ -54,7 +57,10 @@ providers:
     enabled: true
     type: openai_compatible
     base_url: "http://localhost:8080/v1"
-    api_key: "local"
+    api_key: ""
+    env_key: "LLAMA_CPP_API_TOKEN"
+    model_discovery_timeout_seconds: 20
+    request_timeout_seconds: 120
     device: windows_or_mac
     priority: 2
     cost: 0

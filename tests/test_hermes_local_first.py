@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import json
 
 import pytest
 
@@ -9,6 +10,7 @@ from backend.services.local_cache import LocalCache
 from backend.services.model_router import ModelRouter
 from backend.services.provider_registry import ProviderRegistry
 from backend.services.repo_indexer import RepoIndexer
+from llm import client as llm_client
 
 
 CONFIG_PATH = Path("config/hermes.model.rotation.yaml")
@@ -160,3 +162,92 @@ def test_openrouter_is_not_called_when_cloud_auto_fallback_is_disabled(tmp_path:
 
     assert result["error"] == "local-runtime-missing"
     assert "openrouter_locked" not in calls
+
+
+class _FakeHttpResponse:
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+        self.status = 200
+
+    def read(self) -> bytes:
+        return json.dumps(self.payload).encode("utf-8")
+
+    def __enter__(self) -> "_FakeHttpResponse":
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+
+def test_local_client_omits_placeholder_auth_and_uses_discovered_model(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests = []
+
+    def fake_urlopen(request, timeout=20):
+        requests.append(request)
+        if request.full_url.endswith("/models"):
+            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
+        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
+
+    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+
+    result = llm_client._openai_compatible_local_response(
+        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
+        "lmstudio_windows",
+        {"base_url": "http://localhost:1234/v1", "api_key": "lm-studio"},
+        "qwen3-4b-instruct-q4",
+        {"temperature": 0.2},
+    )
+
+    assert result is not None
+    assert result["result"] == "Hermes is alive."
+    assert "Authorization" not in dict(requests[0].header_items())
+    chat_payload = json.loads(requests[1].data.decode("utf-8"))
+    assert chat_payload["model"] == "actual-local-model"
+
+
+def test_local_client_uses_env_token_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
+    requests = []
+
+    def fake_urlopen(request, timeout=20):
+        requests.append(request)
+        if request.full_url.endswith("/models"):
+            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
+        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
+
+    monkeypatch.setenv("LM_STUDIO_API_TOKEN", "test-token")
+    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+
+    result = llm_client._openai_compatible_local_response(
+        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
+        "lmstudio_windows",
+        {"base_url": "http://localhost:1234/v1", "env_key": "LM_STUDIO_API_TOKEN", "api_key": ""},
+        "qwen3-4b-instruct-q4",
+        {"temperature": 0.2},
+    )
+
+    assert result is not None
+    assert result["result"] == "Hermes is alive."
+    assert dict(requests[0].header_items())["Authorization"] == "Bearer test-token"
+
+
+def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pytest.MonkeyPatch) -> None:
+    timeouts = []
+
+    def fake_urlopen(request, timeout=20):
+        timeouts.append(timeout)
+        if request.full_url.endswith("/models"):
+            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
+        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
+
+    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
+
+    result = llm_client._openai_compatible_local_response(
+        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
+        "lmstudio_windows",
+        {"base_url": "http://localhost:1234/v1"},
+        "qwen3-4b-instruct-q4",
+        {"temperature": 0.2},
+    )
+
+    assert result is not None
+    assert timeouts == [20, 120]

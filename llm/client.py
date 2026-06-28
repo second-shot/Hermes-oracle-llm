@@ -10,6 +10,9 @@ load_dotenv()
 
 
 DEFAULT_PROVIDER = "stub"
+PLACEHOLDER_LOCAL_API_KEYS = {"", "lm-studio", "local", "placeholder", "changeme", "none"}
+DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS = 20
+DEFAULT_LOCAL_INFERENCE_TIMEOUT_SECONDS = 120
 
 
 def _provider(config):
@@ -93,33 +96,81 @@ def _messages_for_local_runtime(prompt):
     ]
 
 
+def _provider_api_token(provider_config):
+    env_key = str(provider_config.get("env_key", "")).strip()
+    if env_key:
+        env_value = os.environ.get(env_key, "").strip()
+        if env_value:
+            return env_value
+
+    api_key = str(provider_config.get("api_key", "")).strip()
+    if api_key.lower() in PLACEHOLDER_LOCAL_API_KEYS:
+        return None
+    return api_key or None
+
+
+def _request_json(url, headers=None, payload=None, method="GET", timeout=DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS):
+    encoded_payload = None
+    if payload is not None:
+        encoded_payload = json.dumps(payload).encode("utf-8")
+
+    request = urllib.request.Request(
+        url,
+        data=encoded_payload,
+        headers=headers or {},
+        method=method,
+    )
+    with urllib.request.urlopen(request, timeout=timeout) as response:
+        return json.loads(response.read().decode("utf-8"))
+
+
+def _discover_local_model(base_url, headers, requested_model, timeout=DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS):
+    try:
+        body = _request_json(f"{base_url}/models", headers=headers, method="GET", timeout=timeout)
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+        return requested_model
+
+    available = []
+    for item in body.get("data", []):
+        if isinstance(item, dict) and item.get("id"):
+            available.append(item["id"])
+
+    if requested_model in available:
+        return requested_model
+    if available:
+        return available[0]
+    return requested_model
+
+
 def _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params):
     base_url = str(provider_config.get("base_url", "")).rstrip("/")
     if not base_url:
         return None
 
+    headers = {"Content-Type": "application/json"}
+    api_token = _provider_api_token(provider_config)
+    if api_token:
+        headers["Authorization"] = f"Bearer {api_token}"
+
+    discovery_timeout = int(provider_config.get("model_discovery_timeout_seconds", DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS))
+    inference_timeout = int(provider_config.get("request_timeout_seconds", DEFAULT_LOCAL_INFERENCE_TIMEOUT_SECONDS))
+
+    resolved_model_name = _discover_local_model(base_url, headers, model_name, timeout=discovery_timeout)
     payload = {
-        "model": model_name,
+        "model": resolved_model_name,
         "messages": _messages_for_local_runtime(prompt),
         "temperature": params.get("temperature", 0.2),
         "top_p": params.get("top_p", 0.8),
         "max_tokens": params.get("max_tokens", 512),
     }
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    api_key = provider_config.get("api_key")
-    if api_key:
-        headers["Authorization"] = f"Bearer {api_key}"
-
-    request = urllib.request.Request(
-        f"{base_url}/chat/completions",
-        data=data,
-        headers=headers,
-        method="POST",
-    )
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
-            body = json.loads(response.read().decode("utf-8"))
+        body = _request_json(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            payload=payload,
+            method="POST",
+            timeout=inference_timeout,
+        )
     except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
         return None
 
@@ -133,7 +184,7 @@ def _openai_compatible_local_response(prompt, provider_name, provider_config, mo
         "meta": {
             "mode": "local",
             "provider": provider_name,
-            "model": model_name,
+            "model": resolved_model_name,
         },
     }
 
