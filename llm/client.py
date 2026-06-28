@@ -1,4 +1,7 @@
 import os
+import json
+import urllib.error
+import urllib.request
 from dotenv import load_dotenv
 from openai import OpenAI, APIError
 
@@ -60,6 +63,77 @@ def _stub_response(prompt, reason="no model provider configured"):
             "mode": "stub",
             "reason": reason,
             "provider": "stub",
+        },
+    }
+
+
+def _local_runtime_response(prompt, provider_name, model_name):
+    return _stub_response(
+        prompt,
+        f"Local provider selected: {provider_name} / {model_name}. Hermes stayed offline and zero-cost.",
+    )
+
+
+def _messages_for_local_runtime(prompt):
+    task = _compressed_task(prompt)
+    memory = prompt.get("memory", {})
+    memory_text = ""
+    if memory:
+        memory_text = f"\nRelevant memory/context:\n{json.dumps(memory, ensure_ascii=False)[:1200]}"
+    user_content = task.get("compressed_prompt") or task.get("goal") or "Help with the current task."
+    return [
+        {
+            "role": "system",
+            "content": "You are Hermes running in local-first mode. Prefer concise, actionable answers and avoid unsafe or unverified actions.",
+        },
+        {
+            "role": "user",
+            "content": f"{user_content}{memory_text}",
+        },
+    ]
+
+
+def _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params):
+    base_url = str(provider_config.get("base_url", "")).rstrip("/")
+    if not base_url:
+        return None
+
+    payload = {
+        "model": model_name,
+        "messages": _messages_for_local_runtime(prompt),
+        "temperature": params.get("temperature", 0.2),
+        "top_p": params.get("top_p", 0.8),
+        "max_tokens": params.get("max_tokens", 512),
+    }
+    data = json.dumps(payload).encode("utf-8")
+    headers = {"Content-Type": "application/json"}
+    api_key = provider_config.get("api_key")
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+
+    request = urllib.request.Request(
+        f"{base_url}/chat/completions",
+        data=data,
+        headers=headers,
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=20) as response:
+            body = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
+        return None
+
+    try:
+        result = body["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return None
+
+    return {
+        "result": result,
+        "meta": {
+            "mode": "local",
+            "provider": provider_name,
+            "model": model_name,
         },
     }
 
@@ -144,6 +218,22 @@ def _openai_response(prompt, config):
 
 
 def call_model(prompt, route, config):
+    if isinstance(route, dict):
+        provider_name = route.get("provider", "stub")
+        provider_config = route.get("provider_config", {})
+        model_name = route.get("model", "unknown-model")
+        params = route.get("params", {})
+        if route.get("kind") != "local":
+            return _stub_response(prompt, f"route '{route}' is not implemented")
+        if provider_name in {"lmstudio_windows", "llama_cpp_server"}:
+            local_response = _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params)
+            if local_response is not None:
+                return local_response
+            return None
+        if provider_name == "mlx_mac":
+            return _local_runtime_response(prompt, provider_name, model_name)
+        return _stub_response(prompt, f"provider '{provider_name}' is blocked or not implemented")
+
     if route != "local":
         return _stub_response(prompt, f"route '{route}' is not implemented")
 

@@ -1,0 +1,259 @@
+hermes:
+  mode: local_first
+  default_runtime: lmstudio_windows
+  credit_protection: strict
+  cloud_auto_fallback: false
+  require_manual_cloud_unlock: true
+
+safety:
+  never_use_paid_credit_by_default: true
+  allow_network_models: false
+  allow_openai: false
+  allow_openrouter: false
+  allow_anthropic: false
+  max_cloud_requests_per_day: 0
+  max_cloud_spend_per_day_usd: 0
+  stop_if_provider_cost_unknown: true
+  require_user_phrase_for_cloud: "UNLOCK CLOUD FOR THIS ONE TASK"
+
+routing:
+  strategy: weighted_capability_rotation
+  cache_before_model: true
+  memory_before_model: true
+  repo_index_before_scan: true
+  max_repo_files_loaded: 8
+  max_context_tokens_default: 4096
+  max_output_tokens_default: 700
+
+  scoring_formula:
+    capability_weight: 0.38
+    task_match_weight: 0.24
+    speed_weight: 0.12
+    memory_fit_weight: 0.10
+    recent_success_weight: 0.08
+    context_fit_weight: 0.05
+    cost_penalty_weight: 9999
+    failure_penalty_weight: 0.20
+
+  cooldown:
+    failed_model_minutes: 30
+    slow_model_minutes: 10
+    overheated_device_minutes: 20
+
+providers:
+  lmstudio_windows:
+    enabled: true
+    type: openai_compatible
+    base_url: "http://localhost:1234/v1"
+    api_key: "lm-studio"
+    device: windows
+    priority: 1
+    cost: 0
+
+  llama_cpp_server:
+    enabled: true
+    type: openai_compatible
+    base_url: "http://localhost:8080/v1"
+    api_key: "local"
+    device: windows_or_mac
+    priority: 2
+    cost: 0
+
+  mlx_mac:
+    enabled: true
+    type: mlx_local
+    device: apple_silicon
+    priority: 3
+    cost: 0
+
+  openrouter_locked:
+    enabled: false
+    type: openai_compatible
+    base_url: "https://openrouter.ai/api/v1"
+    env_key: "OPENROUTER_API_KEY"
+    priority: 99
+    cost: paid
+    manual_unlock_only: true
+    daily_request_limit: 0
+
+models:
+  fast_chat:
+    role: quick_chat
+    provider_order:
+      - lmstudio_windows
+      - llama_cpp_server
+      - mlx_mac
+    model_candidates:
+      - "qwen3-4b-instruct-q4"
+      - "qwen2.5-3b-instruct-q4"
+      - "phi-3.5-mini-instruct-q4"
+    params:
+      temperature: 0.35
+      top_p: 0.85
+      top_k: 40
+      repeat_penalty: 1.08
+      max_tokens: 450
+      context_tokens: 4096
+
+  main_reasoning:
+    role: planning_reasoning_architecture
+    provider_order:
+      - lmstudio_windows
+      - mlx_mac
+      - llama_cpp_server
+    model_candidates:
+      - "qwen3-8b-instruct-q4"
+      - "qwen3-4b-instruct-q4"
+      - "llama-3.1-8b-instruct-q4"
+    params:
+      temperature: 0.25
+      top_p: 0.80
+      top_k: 30
+      repeat_penalty: 1.10
+      max_tokens: 900
+      context_tokens: 8192
+
+  coding:
+    role: code_debug_patch_review
+    provider_order:
+      - lmstudio_windows
+      - llama_cpp_server
+      - mlx_mac
+    model_candidates:
+      - "qwen3-coder-local-q4"
+      - "qwen2.5-coder-7b-instruct-q4"
+      - "deepseek-coder-v2-lite-instruct-q4"
+    params:
+      temperature: 0.12
+      top_p: 0.72
+      top_k: 20
+      repeat_penalty: 1.05
+      max_tokens: 1200
+      context_tokens: 8192
+      stop_on_unverified_commands: true
+
+  vision:
+    role: screenshots_images_ui_pdf
+    provider_order:
+      - lmstudio_windows
+      - mlx_mac
+    model_candidates:
+      - "qwen2.5-vl-7b-instruct-q4"
+      - "gemma-3-4b-it-vision-q4"
+      - "llava-1.6-mistral-7b-q4"
+    params:
+      temperature: 0.20
+      top_p: 0.80
+      max_tokens: 800
+      context_tokens: 4096
+
+  long_memory:
+    role: summarise_compress_archive
+    provider_order:
+      - lmstudio_windows
+      - llama_cpp_server
+      - mlx_mac
+    model_candidates:
+      - "qwen3-4b-instruct-q4"
+      - "qwen2.5-3b-instruct-q4"
+    params:
+      temperature: 0.10
+      top_p: 0.70
+      max_tokens: 500
+      context_tokens: 8192
+
+embeddings:
+  enabled: true
+  provider: local_python
+  model: "BAAI/bge-small-en-v1.5"
+  cost: 0
+  chunk_tokens: 420
+  overlap_tokens: 60
+  top_k: 24
+
+reranker:
+  enabled: true
+  provider: local_python
+  model: "BAAI/bge-reranker-base"
+  rerank_top_k: 24
+  final_top_k: 6
+  cost: 0
+
+cache:
+  enabled: true
+  exact_cache: true
+  semantic_cache: true
+  semantic_threshold: 0.88
+  cache_dir: ".hermes/cache"
+  reuse_before_inference: true
+  store_model_outputs: true
+  store_tool_results: true
+
+memory:
+  enabled: true
+  mode: project_scoped
+  working_memory_tokens: 1200
+  project_memory_tokens: 2400
+  long_term_memory_tokens: 1600
+  never_load_full_memory: true
+  compression_model: long_memory
+
+repo_reflection:
+  enabled: true
+  never_scan_full_repo_on_startup: true
+  index_file: ".hermes/repo_index.json"
+  symbol_index_file: ".hermes/symbol_index.json"
+  max_files_per_task: 8
+  max_lines_per_file: 260
+  prefer_git_diff: true
+  prefer_recent_errors: true
+  ignore:
+    - ".git"
+    - "node_modules"
+    - ".venv"
+    - "venv"
+    - "__pycache__"
+    - "dist"
+    - "build"
+    - ".next"
+    - ".cache"
+    - "logs"
+    - "_archive"
+
+task_routes:
+  simple_chat:
+    use_model: fast_chat
+    require_tools: false
+
+  architecture_plan:
+    use_model: main_reasoning
+    require_memory: true
+    require_repo_index: false
+
+  repo_debug:
+    use_model: coding
+    require_repo_index: true
+    require_git_diff: true
+    max_files_loaded: 8
+
+  code_patch:
+    use_model: coding
+    require_repo_index: true
+    require_tests: true
+    require_human_approval_before_write: true
+
+  screenshot_or_image:
+    use_model: vision
+    require_vision: true
+
+  summarise_memory:
+    use_model: long_memory
+    require_memory: true
+
+cloud_unlock:
+  enabled: false
+  unlock_phrase: "UNLOCK CLOUD FOR THIS ONE TASK"
+  allowed_models_when_unlocked:
+    - "openrouter/free-model-only"
+  paid_models_allowed: false
+  reset_after_each_task: true
