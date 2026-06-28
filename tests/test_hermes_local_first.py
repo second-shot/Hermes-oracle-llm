@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 import json
+import threading
+import time
+import urllib.request
 
 import pytest
 
@@ -10,6 +13,7 @@ from backend.services.local_cache import LocalCache
 from backend.services.model_router import ModelRouter
 from backend.services.provider_registry import ProviderRegistry
 from backend.services.repo_indexer import RepoIndexer
+from backend.routes.llm import run_server
 from llm import client as llm_client
 
 
@@ -251,3 +255,28 @@ def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pyt
 
     assert result is not None
     assert timeouts == [20, 120]
+
+
+def test_hermes_api_serves_models_and_chat(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir("C:/Users/max/Hermes-oracle-llm")
+    thread = threading.Thread(target=run_server, kwargs={"host": "127.0.0.1", "port": 8011}, daemon=True)
+    thread.start()
+    time.sleep(1.0)
+
+    models = json.loads(urllib.request.urlopen("http://127.0.0.1:8011/v1/models", timeout=10).read().decode("utf-8"))
+    assert models["object"] == "list"
+    assert models["data"]
+
+    payload = {
+        "model": models["data"][0]["id"],
+        "messages": [{"role": "user", "content": "Say Hermes is ready."}],
+    }
+    request = urllib.request.Request(
+        "http://127.0.0.1:8011/v1/chat/completions",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    chat = json.loads(urllib.request.urlopen(request, timeout=30).read().decode("utf-8"))
+    assert chat["object"] == "chat.completion"
+    assert chat["choices"][0]["message"]["role"] == "assistant"
