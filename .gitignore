@@ -7,3 +7,4 @@ logs/
 cache/
 data/employee/*.tmp
 data/employee/runtime.lock
+.worktrees/
