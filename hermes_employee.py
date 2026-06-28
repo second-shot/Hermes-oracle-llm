@@ -17,11 +17,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
+from runtime_state import append_text, atomic_write_json, atomic_write_text, ensure_runtime_state, redact_text
+
 ROOT = Path(__file__).resolve().parent
-DATA_EMPLOYEE = ROOT / "data" / "employee"
-DATA_SECURITY = ROOT / "data" / "security"
-DATA_SOURCES = ROOT / "data" / "sources"
 SKILLS_DIR = ROOT / "skills"
+RUNTIME_PATHS = ensure_runtime_state(ROOT)
+DATA_EMPLOYEE = RUNTIME_PATHS.employee_dir
+DATA_SECURITY = RUNTIME_PATHS.security_dir
+DATA_SOURCES = RUNTIME_PATHS.sources_dir
 LOG_FILE = DATA_EMPLOYEE / "log.md"
 SECURITY_LOG = DATA_SECURITY / "security_log.md"
 
@@ -79,16 +82,19 @@ def read_json(path: Path, default: Any) -> Any:
 
 def write_json(path: Path, data: Any) -> None:
     ensure_dirs()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    atomic_write_json(path, data)
+
+
+def write_text_file(path: Path, text: str, *, redact: bool = False) -> None:
+    ensure_dirs()
+    payload = redact_text(text) if redact else text
+    atomic_write_text(path, payload)
 
 
 def append_log(text: str, security: bool = False) -> None:
     ensure_dirs()
     target = SECURITY_LOG if security else LOG_FILE
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with target.open("a", encoding="utf-8") as f:
-        f.write(f"\n## {now()}\n{text.strip()}\n")
+    append_text(target, f"\n## {now()}\n{text.strip()}\n", redact=True)
 
 
 def default_tasks() -> List[Dict[str, Any]]:
@@ -541,7 +547,7 @@ def cmd_ethical_check(args: argparse.Namespace) -> None:
 
 def cmd_threat_model(args: argparse.Namespace) -> None:
     report = f"""# Threat Model\n\nCreated: {now()}\n\n## Target\n{args.target}\n\n## Assets\n- repo files\n- local task state\n- logs\n- approvals\n- secrets that must never be committed\n\n## Threats\n- accidental secret leakage\n- unsafe automation\n- uncontrolled network/tool execution\n- destructive commands\n- stale or unverified source data\n\n## Mitigations\n- approval gates for medium/high risk\n- no network by default\n- masked secret scans\n- append-only logs\n- deterministic tick loop\n- git checkpoints after tests\n\n## Next Safe Action\nRun `python hermes_employee.py security-check`.\n"""
-    (DATA_SECURITY / "security_report.md").write_text(report, encoding="utf-8")
+    write_text_file(DATA_SECURITY / "security_report.md", report, redact=True)
     score = load_security_score()
     score["threat_models_created"] = int(score.get("threat_models_created", 0)) + 1
     save_security_score(score)
@@ -613,7 +619,7 @@ def write_secret_report(findings: List[Dict[str, Any]]) -> str:
         for f in findings:
             lines.append(f"- `{f['file']}` line {f['line']}: {f['type']} = `{f['masked']}`")
     report = "\n".join(lines) + "\n"
-    (DATA_SECURITY / "secret_scan_report.md").write_text(report, encoding="utf-8")
+    write_text_file(DATA_SECURITY / "secret_scan_report.md", report, redact=True)
     return report
 
 
@@ -639,7 +645,7 @@ def harden_plan_text() -> str:
 
 def cmd_harden_plan(_: argparse.Namespace) -> None:
     text = harden_plan_text()
-    (DATA_SECURITY / "security_report.md").write_text(text, encoding="utf-8")
+    write_text_file(DATA_SECURITY / "security_report.md", text, redact=True)
     score = load_security_score()
     score["hardening_plans_created"] = int(score.get("hardening_plans_created", 0)) + 1
     save_security_score(score)
@@ -655,7 +661,7 @@ def cmd_security_check(args: argparse.Namespace) -> None:
     combined = f"# Security Check\n\nCreated: {now()}\n\n## Secret Scan\nFindings: {len(findings)}\n\n## Hardening Plan\n{harden}\n"
     if question:
         combined = f"# Security Check\n\nCreated: {now()}\n\nQuestion: {question}\n\n## Secret Scan\nFindings: {len(findings)}\n\n## Hardening Plan\n{harden}\n"
-    (DATA_SECURITY / "security_report.md").write_text(combined, encoding="utf-8")
+    write_text_file(DATA_SECURITY / "security_report.md", combined, redact=True)
     score = load_security_score()
     score["secret_scans_run"] = int(score.get("secret_scans_run", 0)) + 1
     score["security_reports_created"] = int(score.get("security_reports_created", 0)) + 1
@@ -684,7 +690,11 @@ def validate_local_package() -> List[str]:
             try:
                 json.loads(path.read_text(encoding="utf-8"))
             except Exception as exc:
-                issues.append(f"Invalid JSON {path.relative_to(ROOT)}: {exc}")
+                try:
+                    label = str(path.relative_to(ROOT))
+                except ValueError:
+                    label = str(path)
+                issues.append(f"Invalid JSON {label}: {exc}")
 
     source = (ROOT / "hermes_employee.py").read_text(encoding="utf-8", errors="ignore")
     required_commands = [
@@ -759,14 +769,14 @@ def ensure_initial_files() -> None:
     read_json(DATA_EMPLOYEE / "scoreboard.json", default_scoreboard())
     read_json(DATA_EMPLOYEE / "bonus_ledger.json", [])
     if not LOG_FILE.exists():
-        LOG_FILE.write_text("# MIA Employee Log\n", encoding="utf-8")
+        write_text_file(LOG_FILE, "# MIA Employee Log\n")
     read_json(DATA_SECURITY / "security_scoreboard.json", default_security_scoreboard())
     if not (DATA_SECURITY / "security_report.md").exists():
-        (DATA_SECURITY / "security_report.md").write_text("# Security Report\n\nNo report yet.\n", encoding="utf-8")
+        write_text_file(DATA_SECURITY / "security_report.md", "# Security Report\n\nNo report yet.\n")
     if not (DATA_SECURITY / "secret_scan_report.md").exists():
-        (DATA_SECURITY / "secret_scan_report.md").write_text("# Secret Scan Report\n\nNo scan yet.\n", encoding="utf-8")
+        write_text_file(DATA_SECURITY / "secret_scan_report.md", "# Secret Scan Report\n\nNo scan yet.\n")
     if not SECURITY_LOG.exists():
-        SECURITY_LOG.write_text("# Security Log\n", encoding="utf-8")
+        write_text_file(SECURITY_LOG, "# Security Log\n")
     read_json(DATA_SOURCES / "source_registry.json", default_source_registry())
     read_json(DATA_SOURCES / "source_log.json", [])
     read_json(DATA_SOURCES / "source_cache.json", {})
