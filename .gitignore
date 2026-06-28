@@ -51,6 +51,9 @@ coverage.xml
 
 # Environments
 .env
+.env*
+!.env.example
+.venv/
 .venv
 env/
 venv/
@@ -70,12 +73,23 @@ venv.bak/
 Thumbs.db
 
 # Hermes specific
+logs/
 cache/
-models/
+.hermes/
+*.tmp
+memory/*.json
 memory/logs.md
-memory/structured.json
 *.bundle
 .mia_state/
+data/employee/*.json
+data/employee/*.md
 data/employee/*.tmp
 data/employee/runtime.lock
+data/security/*.json
+data/security/*.md
+data/sources/source_log.json
+data/sources/source_cache.json
 oracle_v1/*.json
+.worktrees/
+!tests/fixtures/
+!tests/fixtures/**

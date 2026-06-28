@@ -5,8 +5,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from core.executor import execute_task
-
 from .adapters import LocalAuthAdapter, LocalStorageAdapter, NoopRealtimeAdapter
 from .contracts import ArchitectIntent, ConfirmationRequest, NextAction, Notification, OracleEvent
 from .intents import detect_architect_intent, detect_risk_level, make_next_action, normalize_text
@@ -377,9 +375,15 @@ class OracleService:
         return make_next_action("continue", "Submit the next action", "Create a new intake or execute a safe task.", False)
 
     def _run_safe_execution(self, text: str) -> dict:
-        config_path = Path(__file__).resolve().parent.parent / "config.json"
-        config = json.loads(config_path.read_text(encoding="utf-8"))
-        config["cloud_enabled"] = False
-        config.setdefault("llm", {})["provider"] = "stub"
-        result = execute_task(text, config)
-        return {"mode": "stub", "result": result}
+        safe_text = text.strip() or "task"
+        return {
+            "mode": "stub",
+            "result": {
+                "result": f"Oracle safe execution recorded for: {safe_text}",
+                "cache": "miss",
+                "meta": {
+                    "mode": "stub",
+                    "provider": "oracle-safe-execution",
+                },
+            },
+        }

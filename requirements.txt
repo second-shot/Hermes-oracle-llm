@@ -2,6 +2,9 @@
 # Add provider dependencies only when the provider is enabled.
 openai>=1.0.0
 python-dotenv>=0.21.0
+pytest>=9.0.0
+fastapi>=0.138.0
+uvicorn>=0.49.0
 # Example future options:
 # mlx-lm
 # requests

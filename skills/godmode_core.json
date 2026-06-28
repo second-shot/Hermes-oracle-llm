@@ -1,0 +1,23 @@
+{
+  "mode": "GODMODE_1000X",
+  "principle": "best one, safest route, measurable checkpoint",
+  "loop": [
+    "compress",
+    "classify",
+    "risk_check",
+    "source_plan",
+    "route",
+    "act_or_propose",
+    "verify",
+    "log",
+    "checkpoint"
+  ],
+  "defaults": {
+    "network": false,
+    "cloud": false,
+    "paid_api": false,
+    "destructive_actions": false,
+    "approval_required_for_medium_risk": true,
+    "approval_required_for_high_risk": true
+  }
+}

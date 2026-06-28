@@ -1,36 +1,42 @@
-import json
 from datetime import datetime
+from pathlib import Path
+
+from runtime_state import append_text, atomic_write_json, ensure_runtime_state
 
 
-STRUCTURED_PATH = "memory/structured.json"
-LOG_PATH = "memory/logs.md"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _runtime_paths():
+    runtime = ensure_runtime_state(REPO_ROOT)
+    return runtime.memory_dir / "structured.json", runtime.logs_dir / "sessions.md"
 
 
 def read_memory(prompt):
+    structured_path, _ = _runtime_paths()
     try:
-        with open(STRUCTURED_PATH, "r") as f:
+        import json
+
+        with structured_path.open("r", encoding="utf-8") as f:
             return json.load(f)
-    except:
+    except (FileNotFoundError, OSError, ValueError):
         return {}
 
 
 def update_memory(prompt, response):
-    try:
-        data = read_memory(prompt)
-    except:
-        data = {}
-
+    structured_path, _ = _runtime_paths()
+    data = read_memory(prompt)
 
     key = prompt["task_type"]
     data[key] = response
 
-
-    with open(STRUCTURED_PATH, "w") as f:
-        json.dump(data, f, indent=2)
+    atomic_write_json(structured_path, data)
 
 
 def log_session(user_input, output):
-    with open(LOG_PATH, "a") as f:
-        f.write(f"\n[{datetime.now()}]\n")
-        f.write(f"INPUT: {user_input}\n")
-        f.write(f"OUTPUT: {output}\n")
+    _, log_path = _runtime_paths()
+    append_text(
+        log_path,
+        f"\n[{datetime.now()}]\nINPUT: {user_input}\nOUTPUT: {output}\n",
+        redact=True,
+    )
