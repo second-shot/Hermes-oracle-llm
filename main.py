@@ -1,14 +1,65 @@
 import json
 import sys
+from pathlib import Path
 
 from core.executor import execute_task
 from downloads.cli import handle_download_command, print_json
 from memory.store import log_session
 
 
+ROOT = Path(__file__).resolve().parent
+CONFIG_PATH = ROOT / "config.json"
+DEFAULT_CONFIG = {
+    "primary_model": "stub",
+    "cloud_enabled": False,
+    "llm": {
+        "provider": "stub",
+        "model": "stub",
+        "temperature": 0.2,
+        "api_key": "",
+    },
+    "routing": {
+        "vision": "local",
+        "text_reasoning": "local",
+        "coding": "local",
+        "automation": "local",
+        "memory": "local",
+        "retrieval": "local",
+    },
+    "limits": {
+        "max_retries_local": 2,
+        "max_retries_cloud": 1,
+        "max_tokens": {
+            "text_reasoning": 100,
+            "coding": 200,
+            "automation": 50,
+            "memory": 50,
+            "retrieval": 50,
+            "vision": 150,
+        },
+    },
+}
+
+
+def _merge_config(defaults, overrides):
+    merged = dict(defaults)
+    for key, value in overrides.items():
+        default_value = merged.get(key)
+        if isinstance(default_value, dict) and isinstance(value, dict):
+            merged[key] = _merge_config(default_value, value)
+        else:
+            merged[key] = value
+    return merged
+
+
 def load_config():
-    with open("config.json", "r") as f:
-        return json.load(f)
+    if not CONFIG_PATH.exists():
+        return json.loads(json.dumps(DEFAULT_CONFIG))
+
+    with CONFIG_PATH.open("r", encoding="utf-8") as f:
+        loaded = json.load(f)
+
+    return _merge_config(DEFAULT_CONFIG, loaded)
 
 
 def run_interactive(config):

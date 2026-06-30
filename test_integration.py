@@ -1,14 +1,8 @@
 #!/usr/bin/env python3
 """Integration checks for Hermes core functionality."""
 
-import json
-import pytest
 from llm.client import call_model
-
-
-def load_config():
-    with open("config.json") as f:
-        return json.load(f)
+from main import load_config
 
 
 def test_hermes_integration_stub_mode(monkeypatch):
@@ -17,11 +11,10 @@ def test_hermes_integration_stub_mode(monkeypatch):
     monkeypatch.delenv("HERMES_LLM_PROVIDER", raising=False)
 
     config = load_config()
-    provider = config["llm"]["provider"]
-    model = config["llm"]["model"]
 
-    assert provider == "openai"
-    assert model == "gpt-4"
+    assert config["cloud_enabled"] is False
+    assert config["llm"]["provider"] == "stub"
+    assert config["llm"]["model"] == "stub"
 
     test_prompt = {
         "task": {
@@ -35,8 +28,16 @@ def test_hermes_integration_stub_mode(monkeypatch):
 
     assert result["meta"]["mode"] == "stub"
     assert result["meta"]["provider"] == "stub"
-    assert "reason" in result["meta"]
-    assert "OpenAI provider selected" in result["meta"]["reason"]
+    assert result["meta"]["reason"] == "no model provider configured"
+
+
+def test_load_config_uses_repo_root(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+
+    config = load_config()
+
+    assert config["cloud_enabled"] is False
+    assert config["llm"]["provider"] == "stub"
 
 
 if __name__ == "__main__":
