@@ -1,0 +1,11 @@
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.md'
+
+enhancement:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '**/*.py'
+          - '.github/workflows/**'
+          - 'config.json'
