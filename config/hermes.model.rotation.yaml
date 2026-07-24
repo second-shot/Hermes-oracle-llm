@@ -52,6 +52,7 @@ providers:
     device: windows
     priority: 1
     cost: 0
+    model: "hermes-free"
 
   llama_cpp_server:
     enabled: true
@@ -90,9 +91,7 @@ models:
       - llama_cpp_server
       - mlx_mac
     model_candidates:
-      - "qwen3-4b-instruct-q4"
-      - "qwen2.5-3b-instruct-q4"
-      - "phi-3.5-mini-instruct-q4"
+      - "hermes-free"
     params:
       temperature: 0.35
       top_p: 0.85
@@ -108,9 +107,7 @@ models:
       - mlx_mac
       - llama_cpp_server
     model_candidates:
-      - "qwen3-8b-instruct-q4"
-      - "qwen3-4b-instruct-q4"
-      - "llama-3.1-8b-instruct-q4"
+      - "hermes-free"
     params:
       temperature: 0.25
       top_p: 0.80
@@ -126,9 +123,7 @@ models:
       - llama_cpp_server
       - mlx_mac
     model_candidates:
-      - "qwen3-coder-local-q4"
-      - "qwen2.5-coder-7b-instruct-q4"
-      - "deepseek-coder-v2-lite-instruct-q4"
+      - "hermes-free"
     params:
       temperature: 0.12
       top_p: 0.72
@@ -144,9 +139,7 @@ models:
       - lmstudio_windows
       - mlx_mac
     model_candidates:
-      - "qwen2.5-vl-7b-instruct-q4"
-      - "gemma-3-4b-it-vision-q4"
-      - "llava-1.6-mistral-7b-q4"
+      - "hermes-free"
     params:
       temperature: 0.20
       top_p: 0.80
@@ -160,8 +153,7 @@ models:
       - llama_cpp_server
       - mlx_mac
     model_candidates:
-      - "qwen3-4b-instruct-q4"
-      - "qwen2.5-3b-instruct-q4"
+      - "hermes-free"
     params:
       temperature: 0.10
       top_p: 0.70
