@@ -193,6 +193,47 @@ def _openai_compatible_local_response(prompt, provider_name, provider_config, mo
     }
 
 
+def _openai_compatible_cloud_response(prompt, provider_name, provider_config, model_name, params):
+    base_url = str(provider_config.get("base_url", "")).rstrip("/")
+    api_token = _provider_api_token(provider_config)
+    if not base_url or not api_token:
+        return None
+
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": model_name,
+        "messages": _messages_for_local_runtime(prompt),
+        "temperature": params.get("temperature", 0.2),
+        "top_p": params.get("top_p", 0.8),
+        "max_tokens": params.get("max_tokens", 512),
+    }
+    try:
+        body = _request_json(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            payload=payload,
+            method="POST",
+            timeout=int(provider_config.get("request_timeout_seconds", 120)),
+        )
+        result = body["choices"][0]["message"]["content"]
+    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError, KeyError, IndexError, TypeError):
+        return None
+
+    usage = body.get("usage", {}) if isinstance(body, dict) else {}
+    return {
+        "result": result,
+        "meta": {
+            "mode": "cloud-explicit",
+            "provider": provider_name,
+            "model": model_name,
+            "tokens_used": usage.get("total_tokens"),
+        },
+    }
+
+
 def _mlx_response(prompt, config):
     return _stub_response(
         prompt,
@@ -278,8 +319,12 @@ def call_model(prompt, route, config):
         provider_config = route.get("provider_config", {})
         model_name = route.get("model", "unknown-model")
         params = route.get("params", {})
+        if route.get("kind") == "cloud":
+            if provider_name in {"openai_locked", "openrouter_locked"}:
+                return _openai_compatible_cloud_response(prompt, provider_name, provider_config, model_name, params)
+            return None
         if route.get("kind") != "local":
-            return _stub_response(prompt, f"route '{route}' is not implemented")
+            return None
         if provider_name in {"lmstudio_windows", "llama_cpp_server"}:
             local_response = _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params)
             if local_response is not None:

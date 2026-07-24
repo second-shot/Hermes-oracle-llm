@@ -17,15 +17,16 @@ def _provider_name(config):
     ).lower()
 
 
-def execute_task(user_input, config):
+def execute_task(user_input, config, unlock_phrase=None):
     compressed = compress(user_input)
     provider = _provider_name(config)
     prompt = {"task": compressed}
     router = ModelRouter(memory_reader=lambda _plan: read_memory(compressed))
 
     def infer(attempt):
+        route_kind = "cloud" if attempt["provider"].get("is_cloud") else "local"
         attempt_route = {
-            "kind": "local",
+            "kind": route_kind,
             "provider": attempt["provider"]["name"],
             "provider_config": attempt["provider"]["provider"],
             "model": attempt["model"],
@@ -36,14 +37,8 @@ def execute_task(user_input, config):
         prompt["repo_index"] = attempt.get("repo_index")
         return call_model(prompt, attempt_route, config)
 
-    result = router.run_task(user_input, infer)
+    result = router.run_task(user_input, infer, unlock_phrase=unlock_phrase)
     if result.get("error"):
-        if result["error"] == "local-runtime-missing" and config.get("cloud_enabled") is True:
-            fallback = call_model(prompt, "local", config)
-            if fallback and fallback.get("result"):
-                response = {"result": fallback["result"], "cache": "miss"}
-                update_memory(compressed, response)
-                return response
         return {"error": result["error"], "message": result.get("message"), "cache": "miss"}
 
     response = {"result": result["result"], "cache": "hit" if result["source"] == "cache" else "miss"}

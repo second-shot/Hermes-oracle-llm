@@ -1,0 +1,45 @@
+core:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "core/**"
+          - "backend/routes/**"
+          - "backend/main.py"
+
+oracle:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "oracle_v1/**"
+          - "backend/dashboard/**"
+
+model-rotation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "backend/services/model_router.py"
+          - "backend/services/provider_registry.py"
+          - "backend/services/credit_guard.py"
+          - "config/hermes.model.rotation.yaml"
+
+memory:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "memory/**"
+          - "runtime_state.py"
+
+security:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "policies/**"
+          - "skills/security/**"
+          - "docs/SECURITY*"
+
+tests:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/**"
+          - "test_*.py"
+
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "README.md"

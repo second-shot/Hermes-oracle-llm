@@ -20,8 +20,9 @@ def test_hermes_integration_stub_mode(monkeypatch):
     provider = config["llm"]["provider"]
     model = config["llm"]["model"]
 
-    assert provider == "openai"
-    assert model == "gpt-4"
+    assert config["cloud_enabled"] is False
+    assert provider == "stub"
+    assert model == "hermes-local"
 
     test_prompt = {
         "task": {
@@ -36,7 +37,7 @@ def test_hermes_integration_stub_mode(monkeypatch):
     assert result["meta"]["mode"] == "stub"
     assert result["meta"]["provider"] == "stub"
     assert "reason" in result["meta"]
-    assert "OpenAI provider selected" in result["meta"]["reason"]
+    assert "no model provider configured" in result["meta"]["reason"]
 
 
 if __name__ == "__main__":

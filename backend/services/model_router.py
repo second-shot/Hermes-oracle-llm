@@ -83,6 +83,20 @@ class ModelRouter:
                 )
         return attempts[:2]
 
+    def _run_attempts(
+        self,
+        plan: dict[str, Any],
+        providers: list[Any],
+        memory: Any,
+        repo_index: Any,
+        model_inference: Callable[[dict[str, Any]], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        for attempt in self._candidate_attempts(plan, providers, memory, repo_index):
+            result = model_inference(attempt)
+            if result and result.get("result"):
+                return result
+        return None
+
     def run_task(
         self,
         user_input: str,
@@ -110,25 +124,38 @@ class ModelRouter:
 
         providers = self.provider_registry.available_providers(plan["task_route"], plan["model_key"], self.credit_guard)
         local_providers = [provider for provider in providers if not provider.is_cloud]
-        if not local_providers:
+        cloud_providers = [provider for provider in providers if provider.is_cloud]
+
+        result = self._run_attempts(plan, local_providers, memory, repo_index, model_inference)
+        if result:
+            self.cache.set_model_output(cache_key, result, cache_payload)
             self.credit_guard.complete_task()
             return {
-                "error": "local-runtime-missing",
-                "message": "No local runtime is available. Start LM Studio or llama.cpp and try again.",
+                "source": "model",
+                "route_class": "local",
+                **result,
                 "task_route": plan["task_route"],
+                "model_key": plan["model_key"],
             }
 
-        for attempt in self._candidate_attempts(plan, local_providers, memory, repo_index):
-            result = model_inference(attempt)
-            if result and result.get("result"):
-                self.cache.set_model_output(cache_key, result, cache_payload)
-                self.credit_guard.complete_task()
-                return {"source": "model", **result, "task_route": plan["task_route"], "model_key": plan["model_key"]}
+        # Cloud providers can only appear here after CreditGuard accepts the exact
+        # one-task unlock phrase. There is intentionally no automatic fallback.
+        result = self._run_attempts(plan, cloud_providers, memory, repo_index, model_inference)
+        if result:
+            self.cache.set_model_output(cache_key, result, cache_payload)
+            self.credit_guard.complete_task()
+            return {
+                "source": "model",
+                "route_class": "cloud-explicit",
+                **result,
+                "task_route": plan["task_route"],
+                "model_key": plan["model_key"],
+            }
 
         self.credit_guard.complete_task()
         return {
             "error": "local-runtime-missing",
-            "message": "Local models were selected first, but no local model completed the task.",
+            "message": "No local model completed the task. Cloud remained locked.",
             "task_route": plan["task_route"],
             "unlock_phrase": CLOUD_UNLOCK_PHRASE,
         }

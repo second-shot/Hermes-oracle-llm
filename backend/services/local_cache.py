@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -59,7 +59,8 @@ class LocalCache:
 
     def set_model_output(self, key: str, response: Any, payload: Any | None = None) -> None:
         exact = self._read_json(self.exact_path)
-        exact[key] = {"response": response, "saved_at": datetime.utcnow().isoformat()}
+        saved_at = datetime.now(timezone.utc).isoformat()
+        exact[key] = {"response": response, "saved_at": saved_at}
         self._write_json(self.exact_path, exact)
 
         if payload is not None:
@@ -67,7 +68,7 @@ class LocalCache:
             semantic[key] = {
                 "signature": self._signature(payload),
                 "response": response,
-                "saved_at": datetime.utcnow().isoformat(),
+                "saved_at": saved_at,
             }
             self._write_json(self.semantic_path, semantic)
 
@@ -78,7 +79,7 @@ class LocalCache:
             "tool": tool_name,
             "response": response,
             "signature": self._signature(payload),
-            "saved_at": datetime.utcnow().isoformat(),
+            "saved_at": datetime.now(timezone.utc).isoformat(),
         }
         self._write_json(self.tool_path, data)
 

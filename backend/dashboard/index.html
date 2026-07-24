@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08090b" />
+    <title>Hermes Oracle · Control Plane</title>
+    <link rel="stylesheet" href="/ui/assets/styles.css" />
+  </head>
+  <body>
+    <div class="ambient ambient-one"></div>
+    <div class="ambient ambient-two"></div>
+
+    <header class="topbar">
+      <a class="brand" href="/ui" aria-label="Hermes Oracle home">
+        <span class="brand-mark">H</span>
+        <span>
+          <strong>HERMES</strong>
+          <small>ORACLE CONTROL PLANE</small>
+        </span>
+      </a>
+      <div class="topbar-actions">
+        <span class="mode-pill"><i></i> Local first</span>
+        <span class="clock" id="clock">--:--</span>
+        <button class="icon-button" id="refreshButton" aria-label="Refresh control plane">↻</button>
+      </div>
+    </header>
+
+    <div class="shell">
+      <aside class="rail" aria-label="Control plane sections">
+        <span class="rail-label">SYSTEM</span>
+        <a class="rail-link active" href="#overview"><span>01</span>Overview</a>
+        <a class="rail-link" href="#modules"><span>02</span>Modules</a>
+        <a class="rail-link" href="#rotation"><span>03</span>Rotation</a>
+        <a class="rail-link" href="#upkeep"><span>04</span>Upkeep</a>
+        <div class="rail-spacer"></div>
+        <div class="rail-note">
+          <span>Approval boundary</span>
+          <strong>Nothing external moves without MAXI.</strong>
+        </div>
+      </aside>
+
+      <main>
+        <section class="hero" id="overview">
+          <div class="hero-copy">
+            <div class="eyebrow">OPERATOR / MAXI</div>
+            <h1>One nervous system.<br /><em>Many precise hands.</em></h1>
+            <p id="ecosystemPromise">
+              Hermes turns local intelligence into verified checkpoints while Oracle protects direction, cost and consequence.
+            </p>
+            <div class="hero-actions">
+              <a class="primary-button" href="#command">Give Oracle direction <span>↗</span></a>
+              <a class="ghost-button" href="/docs">API contract</a>
+            </div>
+          </div>
+          <div class="oracle-presence" aria-label="Oracle state">
+            <div class="orbit orbit-one"></div>
+            <div class="orbit orbit-two"></div>
+            <div class="oracle-orb"><span></span></div>
+            <div class="presence-label">
+              <span>ORACLE STATE</span>
+              <strong id="oracleState">Listening</strong>
+              <small id="oracleAction">Waiting for a clear objective</small>
+            </div>
+          </div>
+        </section>
+
+        <section class="metric-grid" aria-label="System metrics">
+          <article class="metric-card">
+            <span>Default spend</span>
+            <strong id="defaultSpend">£0</strong>
+            <small>Cloud remains locked</small>
+          </article>
+          <article class="metric-card">
+            <span>Healthy modules</span>
+            <strong id="healthyModules">—</strong>
+            <small id="moduleTotal">Loading registry</small>
+          </article>
+          <article class="metric-card">
+            <span>Upkeep gate</span>
+            <strong id="upkeepStatus">—</strong>
+            <small>Tests + structural audit</small>
+          </article>
+          <article class="metric-card">
+            <span>Pending consent</span>
+            <strong id="pendingCount">—</strong>
+            <small>No silent execution</small>
+          </article>
+        </section>
+
+        <section class="section" id="modules">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">MODULAR ECOSYSTEM</span>
+              <h2>Every organ has a pulse.</h2>
+            </div>
+            <p>Active modules must have an entrypoint, a contract and proof. Incubating modules earn promotion.</p>
+          </div>
+          <div class="module-grid" id="moduleGrid">
+            <div class="loading-card">Reading the module registry…</div>
+          </div>
+        </section>
+
+        <section class="section" id="rotation">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">MODEL ROTATION</span>
+              <h2>Small engine first. Heavy engine only when earned.</h2>
+            </div>
+            <p>Cache → memory → task route → local model. Cloud cannot appear unless the exact one-task gate is opened.</p>
+          </div>
+          <div class="rotation-layout">
+            <div class="route-list" id="routeList"></div>
+            <aside class="cost-guard">
+              <span class="eyebrow">CREDIT GUARD</span>
+              <div class="guard-lock">LOCKED</div>
+              <h3>Paid inference is not a fallback.</h3>
+              <p id="costGuardCopy">The default route costs zero and remains on the machine.</p>
+              <div class="guard-rule">
+                <span>Unlock scope</span>
+                <strong>One task</strong>
+              </div>
+              <div class="guard-rule">
+                <span>Automatic fallback</span>
+                <strong>Off</strong>
+              </div>
+              <div class="guard-rule">
+                <span>External posting</span>
+                <strong>Approval only</strong>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section class="section" id="upkeep">
+          <div class="section-heading">
+            <div>
+              <span class="eyebrow">AUTOMATIC UPKEEP</span>
+              <h2>The system watches its seams.</h2>
+            </div>
+            <p>Automation may inspect and report. It may not rewrite the organism or publish outside GitHub without review.</p>
+          </div>
+          <div class="upkeep-layout">
+            <div class="upkeep-panel">
+              <div class="panel-title">
+                <h3>Module audit</h3>
+                <span id="auditBadge" class="status-badge neutral">Checking</span>
+              </div>
+              <div class="issue-list" id="issueList"></div>
+            </div>
+            <div class="upkeep-panel">
+              <div class="panel-title">
+                <h3>Consent queue</h3>
+                <span class="status-badge neutral" id="consentBadge">0 pending</span>
+              </div>
+              <div class="confirmation-list" id="confirmationList">
+                <p class="empty-state">No pending decisions.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="command-panel" id="command">
+          <div class="command-intro">
+            <span class="eyebrow">ORACLE INTAKE</span>
+            <h2>Compress the storm into one direction.</h2>
+            <p>Oracle records the objective, detects risk and returns the smallest useful next action.</p>
+          </div>
+          <form id="oracleForm">
+            <label for="oracleInput">Direction</label>
+            <textarea id="oracleInput" name="text" rows="4" placeholder="What should Hermes move forward now?" required></textarea>
+            <div class="form-footer">
+              <span>Local record · approval gated</span>
+              <button class="primary-button" type="submit">Send to Oracle <span>↗</span></button>
+            </div>
+          </form>
+          <div class="command-result" id="commandResult" hidden></div>
+        </section>
+      </main>
+    </div>
+
+    <footer>
+      <span>HERMES ORACLE / LOCAL-FIRST</span>
+      <span id="lastUpdated">Awaiting first signal</span>
+    </footer>
+
+    <script src="/ui/assets/app.js" defer></script>
+  </body>
+</html>

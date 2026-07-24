@@ -85,6 +85,19 @@ def test_unlock_resets_after_one_task(tmp_path: Path) -> None:
     assert allowed.allowed is False
 
 
+def test_paid_openai_bridge_remains_locked_even_after_one_task_phrase(tmp_path: Path) -> None:
+    guard = make_guard(tmp_path)
+    assert guard.unlock_for_task(CLOUD_UNLOCK_PHRASE) is True
+
+    allowed = guard.can_use_provider(
+        "openai_locked",
+        {"cost": "paid", "type": "openai_compatible", "base_url": "https://api.openai.com/v1"},
+    )
+
+    assert allowed.allowed is False
+    assert "paid cloud models remain blocked" in allowed.reason
+
+
 def test_router_chooses_coding_model_for_repo_debug(tmp_path: Path) -> None:
     router = make_router(tmp_path)
 
@@ -283,7 +296,7 @@ def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pyt
 
 
 def test_hermes_api_serves_models_and_chat(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir("C:/Users/max/Hermes-oracle-llm")
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
     thread = threading.Thread(target=run_server, kwargs={"host": "127.0.0.1", "port": 8011}, daemon=True)
     thread.start()
     time.sleep(1.0)

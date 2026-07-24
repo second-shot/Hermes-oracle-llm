@@ -1,0 +1,52 @@
+name: Hermes ecosystem upkeep
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "17 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hermes-upkeep-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify modules and local-first boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      HERMES_DATA_DIR: ${{ runner.temp }}/hermes-runtime
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+
+      - name: Run test suite
+        run: python -m pytest -q
+
+      - name: Audit ecosystem
+        run: python scripts/check_ecosystem.py --strict > hermes-ecosystem-report.json
+
+      - name: Upload audit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hermes-ecosystem-report
+          path: hermes-ecosystem-report.json
+          if-no-files-found: ignore
+          retention-days: 14

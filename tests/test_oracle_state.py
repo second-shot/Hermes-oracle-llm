@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from oracle_v1.contracts import ConfirmationRequest, NextAction, OracleEvent, OracleHeatLevel
 from oracle_v1.state import resolve_oracle_state
 
 
 def iso(minutes_ago: int = 0) -> str:
-    return (datetime.utcnow() - timedelta(minutes=minutes_ago)).isoformat(timespec="seconds") + "Z"
+    return (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
 def test_state_prefers_waiting_confirmation_over_recent_activity():

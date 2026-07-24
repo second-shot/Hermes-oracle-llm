@@ -45,7 +45,7 @@ class CreditGuard:
 
     def _is_cloud_provider(self, provider_name: str, provider: dict[str, Any]) -> bool:
         base_url = str(provider.get("base_url", "")).lower()
-        if provider_name in {"openai", "openrouter_locked", "anthropic"}:
+        if provider_name in {"openai", "openai_locked", "openrouter_locked", "anthropic"}:
             return True
         if base_url.startswith("https://"):
             return True
@@ -84,6 +84,7 @@ class CreditGuard:
 
         blocked_names = {
             "openai": not safety.get("allow_openai", False),
+            "openai_locked": not safety.get("allow_openai", False),
             "openrouter_locked": not safety.get("allow_openrouter", False),
             "anthropic": not safety.get("allow_anthropic", False),
         }

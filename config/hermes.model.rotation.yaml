@@ -82,6 +82,17 @@ providers:
     manual_unlock_only: true
     daily_request_limit: 0
 
+  openai_locked:
+    enabled: true
+    type: openai_compatible
+    base_url: "https://api.openai.com/v1"
+    env_key: "OPENAI_API_KEY"
+    priority: 100
+    cost: paid
+    manual_unlock_only: true
+    daily_request_limit: 0
+    request_timeout_seconds: 120
+
 models:
   fast_chat:
     role: quick_chat
@@ -89,6 +100,7 @@ models:
       - lmstudio_windows
       - llama_cpp_server
       - mlx_mac
+      - openai_locked
     model_candidates:
       - "qwen3-4b-instruct-q4"
       - "qwen2.5-3b-instruct-q4"
@@ -107,6 +119,7 @@ models:
       - lmstudio_windows
       - mlx_mac
       - llama_cpp_server
+      - openai_locked
     model_candidates:
       - "qwen3-8b-instruct-q4"
       - "qwen3-4b-instruct-q4"
@@ -125,6 +138,7 @@ models:
       - lmstudio_windows
       - llama_cpp_server
       - mlx_mac
+      - openai_locked
     model_candidates:
       - "qwen3-coder-local-q4"
       - "qwen2.5-coder-7b-instruct-q4"
@@ -143,6 +157,7 @@ models:
     provider_order:
       - lmstudio_windows
       - mlx_mac
+      - openai_locked
     model_candidates:
       - "qwen2.5-vl-7b-instruct-q4"
       - "gemma-3-4b-it-vision-q4"
@@ -159,6 +174,7 @@ models:
       - lmstudio_windows
       - llama_cpp_server
       - mlx_mac
+      - openai_locked
     model_candidates:
       - "qwen3-4b-instruct-q4"
       - "qwen2.5-3b-instruct-q4"

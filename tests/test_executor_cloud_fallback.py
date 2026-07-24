@@ -19,7 +19,7 @@ class _RouterReturnsLocalMissing:
         }
 
 
-def test_execute_task_falls_back_to_configured_cloud_provider(monkeypatch) -> None:
+def test_execute_task_never_silently_falls_back_to_cloud(monkeypatch) -> None:
     monkeypatch.setattr(executor, "compress", lambda user_input: {"goal": user_input})
     monkeypatch.setattr(executor, "read_memory", lambda _compressed: {})
     monkeypatch.setattr(executor, "update_memory", lambda *_args, **_kwargs: None)
@@ -41,9 +41,8 @@ def test_execute_task_falls_back_to_configured_cloud_provider(monkeypatch) -> No
         },
     )
 
-    assert result == {"result": "cloud fallback reply", "cache": "miss"}
-    assert len(calls) == 1
-    assert calls[0][1] == "local"
+    assert result["error"] == "local-runtime-missing"
+    assert calls == []
 
 
 def test_execute_task_keeps_local_runtime_error_when_cloud_disabled(monkeypatch) -> None:
