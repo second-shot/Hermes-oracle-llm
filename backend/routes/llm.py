@@ -12,6 +12,7 @@ from core.executor import execute_task
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+_EXECUTOR_LOCK = threading.Lock()
 
 
 def load_config() -> dict[str, Any]:
@@ -39,34 +40,7 @@ def list_models() -> dict[str, Any]:
     return {"object": "list", "data": models}
 
 
-def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
-    messages = payload.get("messages", [])
-    user_text = ""
-    if isinstance(messages, list):
-        for message in reversed(messages):
-            if isinstance(message, dict) and message.get("role") == "user":
-                user_text = str(message.get("content", "")).strip()
-                break
-
-    result_holder: dict[str, Any] = {}
-
-    def _run_executor() -> None:
-        try:
-            result_holder["value"] = execute_task(user_text or "help", load_config())
-        except Exception as exc:  # pragma: no cover - defensive fallback
-            result_holder["error"] = exc
-
-    worker = threading.Thread(target=_run_executor, daemon=True)
-    worker.start()
-    worker.join(timeout=5)
-
-    text = "Hermes is warming up locally and returned a safe stub response."
-    result = result_holder.get("value")
-    if worker.is_alive():
-        text = "Hermes is still warming up locally, so this response was generated without blocking."
-    elif isinstance(result, dict):
-        text = str(result.get("result") or result.get("message") or text)
-
+def _completion_payload(payload: dict[str, Any], text: str) -> dict[str, Any]:
     return {
         "id": f"chatcmpl-hermes-{int(time.time())}",
         "object": "chat.completion",
@@ -81,6 +55,54 @@ def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
         ],
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
+
+
+def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
+    messages = payload.get("messages", [])
+    user_text = ""
+    if isinstance(messages, list):
+        for message in reversed(messages):
+            if isinstance(message, dict) and message.get("role") == "user":
+                user_text = str(message.get("content", "")).strip()
+                break
+
+    # Only one local inference may run at a time. Starting overlapping requests
+    # can make LM Studio load or unload models concurrently and destabilize the
+    # desktop process, especially while the selected model is changing.
+    if not _EXECUTOR_LOCK.acquire(blocking=False):
+        return _completion_payload(
+            payload,
+            "Hermes is already processing a local model request. Let the active request finish before changing models or sending another prompt.",
+        )
+
+    result_holder: dict[str, Any] = {}
+
+    def _run_executor() -> None:
+        try:
+            result_holder["value"] = execute_task(user_text or "help", load_config())
+        except Exception as exc:  # pragma: no cover - defensive fallback
+            result_holder["error"] = exc
+        finally:
+            _EXECUTOR_LOCK.release()
+
+    worker = threading.Thread(target=_run_executor, daemon=True)
+    try:
+        worker.start()
+    except Exception:
+        _EXECUTOR_LOCK.release()
+        raise
+    worker.join(timeout=5)
+
+    text = "Hermes is warming up locally and returned a safe stub response."
+    result = result_holder.get("value")
+    if worker.is_alive():
+        text = "Hermes is still warming up locally. The active request is continuing; do not start another request or change models until it finishes."
+    elif isinstance(result, dict):
+        text = str(result.get("result") or result.get("message") or text)
+    elif result_holder.get("error") is not None:
+        text = f"Hermes local execution failed: {result_holder['error']}"
+
+    return _completion_payload(payload, text)
 
 
 class HermesAPIHandler(BaseHTTPRequestHandler):
