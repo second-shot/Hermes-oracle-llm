@@ -157,10 +157,16 @@ def check_lm_studio(rotation: dict[str, Any]) -> bool:
     ]
     if not available:
         _fail("LM Studio is running but no model is loaded")
-        print("       Load a chat/instruct model in LM Studio, then retry.")
+        print("       Run scripts\\start_local_model.cmd, then retry.")
         return False
 
-    _ok(f"LM Studio model: {available[0]}")
+    expected = str(provider.get("model", "")).strip()
+    if expected and expected not in available:
+        _fail(f"Expected LM Studio model {expected!r}, but loaded: {', '.join(available)}")
+        print("       Run scripts\\start_local_model.cmd to load the correct free model.")
+        return False
+
+    _ok(f"LM Studio model: {expected or available[0]}")
     return True
 
 
