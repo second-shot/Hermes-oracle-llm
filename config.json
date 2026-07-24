@@ -3,7 +3,7 @@
   "cloud_enabled": false,
   "llm": {
     "provider": "local_router",
-    "model": "auto",
+    "model": "hermes-free",
     "temperature": 0.35,
     "api_key": ""
   },
