@@ -2,6 +2,7 @@ import json
 import os
 from core.prompt_compressor import compress
 from llm.client import call_model
+from llm.free_remote import call_free_remote
 from memory.store import read_memory, update_memory
 from backend.services.model_router import ModelRouter
 
@@ -24,16 +25,29 @@ def execute_task(user_input, config):
 
     def infer(attempt):
         provider_status = attempt["provider"]
+        is_free_remote = bool(provider_status.get("is_cloud"))
+        provider_name = provider_status["name"]
+        provider_config = provider_status["provider"]
+        prompt["memory"] = attempt.get("memory", {})
+        prompt["repo_index"] = attempt.get("repo_index")
+
+        if is_free_remote:
+            return call_free_remote(
+                prompt,
+                provider_name,
+                provider_config,
+                attempt["model"],
+                attempt.get("params", {}),
+            )
+
         attempt_route = {
-            "kind": "free-remote" if provider_status.get("is_cloud") else "local",
-            "provider": provider_status["name"],
-            "provider_config": provider_status["provider"],
+            "kind": "local",
+            "provider": provider_name,
+            "provider_config": provider_config,
             "model": attempt["model"],
             "task_route": attempt["task_route"],
             "params": attempt.get("params", {}),
         }
-        prompt["memory"] = attempt.get("memory", {})
-        prompt["repo_index"] = attempt.get("repo_index")
         return call_model(prompt, attempt_route, config)
 
     result = router.run_task(user_input, infer)
