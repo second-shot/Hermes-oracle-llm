@@ -11,15 +11,15 @@ def load_config():
         return json.load(f)
 
 
-def test_openai_integration_stub_mode(monkeypatch):
+def test_openai_requires_explicit_opt_in_and_key(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("HERMES_OPENAI_API_KEY", raising=False)
-    monkeypatch.delenv("HERMES_LLM_PROVIDER", raising=False)
+    monkeypatch.setenv("HERMES_LLM_PROVIDER", "openai")
 
     config = load_config()
 
-    assert config["llm"]["provider"] == "openai"
-    assert config["llm"]["model"] == "gpt-4"
+    assert config["llm"]["provider"] == "local_router"
+    assert config["cloud_enabled"] is False
 
     prompt = {"task": {"goal": "Test workflow creation", "task_type": "text_reasoning"}}
     result = call_model(prompt, "local", config)
