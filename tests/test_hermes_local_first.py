@@ -283,7 +283,7 @@ def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pyt
 
 
 def test_hermes_api_serves_models_and_chat(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir("C:/Users/max/Hermes-oracle-llm")
+    monkeypatch.chdir(Path(__file__).resolve().parents[1])
     thread = threading.Thread(target=run_server, kwargs={"host": "127.0.0.1", "port": 8011}, daemon=True)
     thread.start()
     time.sleep(1.0)
