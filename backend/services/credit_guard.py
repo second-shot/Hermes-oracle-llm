@@ -51,6 +51,15 @@ class CreditGuard:
             return True
         return not any(token in base_url for token in ("localhost", "127.0.0.1")) and provider.get("type") != "mlx_local"
 
+    def _is_verified_free_remote(self, provider: dict[str, Any]) -> bool:
+        return (
+            provider.get("explicit_opt_in") is True
+            and provider.get("verified_zero_cost") is True
+            and provider.get("free_model_only") is True
+            and provider.get("cost") in {0, "0", "free"}
+            and str(provider.get("base_url", "")).lower().startswith("https://")
+        )
+
     def _log_block(self, provider_name: str, reason: str) -> None:
         with self.log_path.open("a", encoding="utf-8") as handle:
             handle.write(f"{provider_name}: {reason}\n")
@@ -71,6 +80,9 @@ class CreditGuard:
     def can_use_provider(self, provider_name: str, provider: dict[str, Any]) -> AccessDecision:
         if not self._is_cloud_provider(provider_name, provider):
             return AccessDecision(True, "local provider allowed")
+
+        if self._is_verified_free_remote(provider):
+            return AccessDecision(True, "explicitly enabled verified zero-cost remote provider allowed")
 
         safety = self.config.get("safety", {})
         cost = provider.get("cost")

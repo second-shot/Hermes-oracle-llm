@@ -1,0 +1,49 @@
+name: Free-only router checks
+
+on:
+  pull_request:
+    paths:
+      - "backend/services/credit_guard.py"
+      - "backend/services/model_router.py"
+      - "core/executor.py"
+      - "llm/free_remote.py"
+      - "tests/test_free_remote_fallback.py"
+      - "tests/test_hermes_local_first.py"
+      - "requirements.txt"
+      - ".github/workflows/free-router-checks.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: free-router-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Verify local/free routing boundary
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      HERMES_DATA_DIR: ${{ runner.temp }}/hermes-data
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt
+
+      - name: Run focused routing tests
+        run: python -m pytest -q tests/test_free_remote_fallback.py tests/test_hermes_local_first.py
+
+      - name: Compile affected packages
+        run: python -m compileall -q backend core llm

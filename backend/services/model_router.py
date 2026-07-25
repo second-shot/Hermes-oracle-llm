@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Callable
 
 from backend.services.credit_guard import CLOUD_UNLOCK_PHRASE, CreditGuard
@@ -83,6 +85,66 @@ class ModelRouter:
                 )
         return attempts[:2]
 
+    def _run_attempts(
+        self,
+        attempts: list[dict[str, Any]],
+        model_inference: Callable[[dict[str, Any]], dict[str, Any] | None],
+    ) -> dict[str, Any] | None:
+        for attempt in attempts:
+            result = model_inference(attempt)
+            if result and result.get("result"):
+                return result
+        return None
+
+    def _free_remote_candidate(self) -> tuple[Any | None, str]:
+        enabled = os.environ.get("HERMES_ENABLE_FREE_REMOTE", "").strip().lower() in {"1", "true", "yes"}
+        if not enabled:
+            return None, "disabled"
+
+        verified = os.environ.get("HERMES_FREE_REMOTE_VERIFIED_ZERO_COST", "").strip().lower() in {"1", "true", "yes"}
+        if not verified:
+            return None, "zero-cost verification missing"
+
+        base_url = os.environ.get("HERMES_FREE_REMOTE_BASE_URL", "").strip().rstrip("/")
+        if not base_url.lower().startswith("https://"):
+            return None, "HTTPS base URL required"
+
+        model = os.environ.get("HERMES_FREE_REMOTE_MODEL", "").strip()
+        if not model:
+            return None, "free model identifier missing"
+
+        provider_name = os.environ.get("HERMES_FREE_REMOTE_PROVIDER", "free_remote").strip() or "free_remote"
+        provider_config = {
+            "enabled": True,
+            "type": "openai_compatible",
+            "base_url": base_url,
+            "env_key": os.environ.get("HERMES_FREE_REMOTE_TOKEN_ENV", "HERMES_FREE_REMOTE_API_KEY").strip(),
+            "model": model,
+            "priority": 50,
+            "cost": "free",
+            "explicit_opt_in": True,
+            "verified_zero_cost": True,
+            "free_model_only": True,
+            "model_discovery_timeout_seconds": 20,
+            "request_timeout_seconds": 120,
+        }
+        decision = self.credit_guard.can_use_provider(provider_name, provider_config)
+        if not decision.allowed:
+            return None, decision.reason
+
+        return (
+            SimpleNamespace(
+                name=provider_name,
+                provider={**provider_config, "name": provider_name},
+                available=True,
+                is_cloud=True,
+                priority=50,
+                routing_score=0.0,
+                model=model,
+            ),
+            "ready",
+        )
+
     def run_task(
         self,
         user_input: str,
@@ -110,25 +172,48 @@ class ModelRouter:
 
         providers = self.provider_registry.available_providers(plan["task_route"], plan["model_key"], self.credit_guard)
         local_providers = [provider for provider in providers if not provider.is_cloud]
-        if not local_providers:
+        local_attempts = self._candidate_attempts(plan, local_providers, memory, repo_index)
+        result = self._run_attempts(local_attempts, model_inference)
+        if result:
+            self.cache.set_model_output(cache_key, result, cache_payload)
             self.credit_guard.complete_task()
             return {
-                "error": "local-runtime-missing",
-                "message": "No local runtime is available. Start LM Studio or llama.cpp and try again.",
+                "source": "model",
+                "route_class": "local",
+                **result,
                 "task_route": plan["task_route"],
+                "model_key": plan["model_key"],
             }
 
-        for attempt in self._candidate_attempts(plan, local_providers, memory, repo_index):
-            result = model_inference(attempt)
-            if result and result.get("result"):
+        free_provider, free_status = self._free_remote_candidate()
+        if free_provider is not None:
+            free_attempt = {
+                "provider": free_provider.__dict__,
+                "model": free_provider.model,
+                "task_route": plan["task_route"],
+                "model_key": plan["model_key"],
+                "memory": memory,
+                "repo_index": repo_index,
+                "params": plan["model_config"].get("params", {}),
+            }
+            result = self._run_attempts([free_attempt], model_inference)
+            if result:
                 self.cache.set_model_output(cache_key, result, cache_payload)
                 self.credit_guard.complete_task()
-                return {"source": "model", **result, "task_route": plan["task_route"], "model_key": plan["model_key"]}
+                return {
+                    "source": "model",
+                    "route_class": "free-remote",
+                    **result,
+                    "task_route": plan["task_route"],
+                    "model_key": plan["model_key"],
+                }
+            free_status = "request failed"
 
         self.credit_guard.complete_task()
         return {
             "error": "local-runtime-missing",
-            "message": "Local models were selected first, but no local model completed the task.",
+            "message": "No local model completed the task and no verified free fallback succeeded.",
             "task_route": plan["task_route"],
+            "fallback_status": free_status,
             "unlock_phrase": CLOUD_UNLOCK_PHRASE,
         }
