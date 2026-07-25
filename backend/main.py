@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from backend.routes.llm import chat_completion, list_models
+from backend.routes.resale import router as resale_router
 
 
 app = FastAPI(title="Hermes Local API")
+app.include_router(resale_router)
 
 
 class ChatRequest(BaseModel):
