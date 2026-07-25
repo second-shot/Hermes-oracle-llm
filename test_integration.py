@@ -11,7 +11,7 @@ def load_config():
         return json.load(f)
 
 
-def test_hermes_integration_stub_mode(monkeypatch):
+def test_hermes_integration_defaults_to_local_router(monkeypatch):
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("HERMES_OPENAI_API_KEY", raising=False)
     monkeypatch.delenv("HERMES_LLM_PROVIDER", raising=False)
@@ -20,8 +20,9 @@ def test_hermes_integration_stub_mode(monkeypatch):
     provider = config["llm"]["provider"]
     model = config["llm"]["model"]
 
-    assert provider == "openai"
-    assert model == "gpt-4"
+    assert provider == "local_router"
+    assert model == "hermes-free"
+    assert config["cloud_enabled"] is False
 
     test_prompt = {
         "task": {
@@ -36,7 +37,7 @@ def test_hermes_integration_stub_mode(monkeypatch):
     assert result["meta"]["mode"] == "stub"
     assert result["meta"]["provider"] == "stub"
     assert "reason" in result["meta"]
-    assert "OpenAI provider selected" in result["meta"]["reason"]
+    assert "unknown provider 'local_router'" in result["meta"]["reason"]
 
 
 if __name__ == "__main__":
