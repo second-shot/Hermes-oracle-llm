@@ -10,7 +10,15 @@ load_dotenv()
 
 
 DEFAULT_PROVIDER = "stub"
-PLACEHOLDER_LOCAL_API_KEYS = {"", "lm-studio", "local", "placeholder", "changeme", "none"}
+PLACEHOLDER_LOCAL_API_KEYS = {
+    "",
+    "<redacted>",
+    "lm-studio",
+    "local",
+    "placeholder",
+    "changeme",
+    "none",
+}
 DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS = 20
 DEFAULT_LOCAL_INFERENCE_TIMEOUT_SECONDS = 120
 

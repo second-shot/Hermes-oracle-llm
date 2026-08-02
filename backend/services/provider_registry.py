@@ -120,8 +120,8 @@ def sanitize_provider(provider_name: str, provider: dict[str, Any]) -> dict[str,
     clean = deepcopy(provider)
     if "api_key" in clean:
         clean["api_key"] = "<redacted>"
-    if "env_key" in clean:
-        clean["env_key"] = "<redacted>"
+    # The environment-variable name is not a secret. Runtime routing needs it
+    # to resolve an optional LM Studio token without copying the token itself.
     clean["name"] = provider_name
     return clean
 
