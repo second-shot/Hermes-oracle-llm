@@ -44,7 +44,7 @@ providers:
   lmstudio_windows:
     enabled: true
     type: openai_compatible
-    base_url: "http://localhost:1234/v1"
+    base_url: "http://127.0.0.1:1234/v1"
     api_key: ""
     env_key: "LM_STUDIO_API_TOKEN"
     model_discovery_timeout_seconds: 20

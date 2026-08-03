@@ -321,6 +321,12 @@ def cmd_status(_: argparse.Namespace) -> None:
         print(f"{k}: {counts.get(k, 0)}")
 
 
+def cmd_provider(_: argparse.Namespace) -> None:
+    from hermes_provider import print_provider_status
+
+    print_provider_status()
+
+
 def cmd_add(args: argparse.Namespace) -> None:
     ensure_initial_files()
     tasks = load_tasks()
@@ -787,6 +793,7 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="MIA / GODMODE 1000X local employee runtime")
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("status").set_defaults(func=cmd_status)
+    sub.add_parser("provider").set_defaults(func=cmd_provider)
     a = sub.add_parser("add"); a.add_argument("text"); a.set_defaults(func=cmd_add)
     a = sub.add_parser("tick"); a.add_argument("text", nargs="*"); a.set_defaults(func=cmd_tick)
     sub.add_parser("run-once").set_defaults(func=cmd_run_once)

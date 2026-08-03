@@ -51,7 +51,7 @@ coverage.xml
 
 # Environments
 .env
-.env*
+.env.*
 !.env.example
 .venv/
 .venv
@@ -75,6 +75,8 @@ Thumbs.db
 # Hermes specific
 logs/
 cache/
+**pycache**/
+*.pyc
 .hermes/
 *.tmp
 memory/*.json

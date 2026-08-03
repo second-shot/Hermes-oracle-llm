@@ -1,0 +1,17 @@
+{
+  "provider": "lm_studio",
+  "enabled": true,
+  "local_only": true,
+  "base_url": "http://127.0.0.1:1234/v1",
+  "fallback_urls": [
+    "http://localhost:1234/v1"
+  ],
+  "api_key_env": "LM_STUDIO_API_KEY",
+  "api_key_default": "lm-studio",
+  "models_endpoint": "/models",
+  "chat_endpoint": "/chat/completions",
+  "responses_endpoint": null,
+  "timeout_seconds": 20,
+  "healthcheck_enabled": true,
+  "notes": "Local LM Studio OpenAI-compatible server. No OpenAI cloud credits."
+}
