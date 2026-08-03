@@ -98,6 +98,22 @@ def test_tiny_route_uses_smallest_model(tmp_path, monkeypatch):
     assert decision["model"] == "qwen2.5:0.5b"
 
 
+def test_chat_route_excludes_embedding_models(tmp_path, monkeypatch):
+    import hermes_model_router as router
+
+    monkeypatch.setattr(router, "LOG_PATH", tmp_path / "router.json")
+    states = {
+        "lm_studio": {
+            "online": True,
+            "base_url": "http://127.0.0.1:1234/v1",
+            "models": ["qwen2.5-vl-3b-instruct", "text-embedding-nomic-embed-text-v1.5"],
+        },
+        "ollama": {"online": False, "base_url": None, "models": []},
+    }
+    decision = router.route_task("Reply with a short answer", states=states)
+    assert decision["model"] == "qwen2.5-vl-3b-instruct"
+
+
 def test_vision_route_only_uses_vision_model(tmp_path, monkeypatch):
     import hermes_model_router as router
 

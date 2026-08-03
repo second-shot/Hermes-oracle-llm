@@ -122,7 +122,13 @@ def _is_vision_model(model: str) -> bool:
     return any(token in lowered for token in ("vision", "llava", "vl", "bakllava"))
 
 
+def _is_chat_model(model: str) -> bool:
+    lowered = model.lower()
+    return not any(token in lowered for token in ("embedding", "embed-text", "rerank"))
+
+
 def select_model(route: str, models: list[str], route_config: dict[str, Any]) -> str | None:
+    models = [model for model in models if _is_chat_model(model)]
     if route == "vision":
         models = [model for model in models if _is_vision_model(model)]
     if not models:
