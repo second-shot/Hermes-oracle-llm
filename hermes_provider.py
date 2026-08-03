@@ -55,6 +55,18 @@ def _validate_url(url: str, config: dict[str, Any]) -> str:
     return clean
 
 
+def validate_provider_url(url: str, *, cloud_enabled: bool = False, allowed_remote_urls: list[str] | None = None) -> str:
+    """Apply Hermes' shared local-provider URL policy."""
+    clean = str(url).strip().rstrip("/")
+    host = (urlparse(clean).hostname or "").lower()
+    allowed = {str(item).strip().rstrip("/") for item in (allowed_remote_urls or [])}
+    if host == "api.openai.com" and not cloud_enabled:
+        raise ValueError("Refusing api.openai.com while cloud is disabled")
+    if not is_local_url(clean) and clean not in allowed:
+        raise ValueError(f"Refusing non-local provider URL: {clean}")
+    return clean
+
+
 def get_lm_studio_base_url() -> str:
     config = load_lm_studio_config()
     candidate = os.getenv("LM_STUDIO_BASE_URL") or config.get("base_url") or DEFAULT_BASE_URL

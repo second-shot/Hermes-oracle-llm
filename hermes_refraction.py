@@ -3,8 +3,14 @@
 from __future__ import annotations
 
 import argparse
+import re
 
 from hermes_provider import get_lm_studio_base_url, get_model_provider, is_local_url
+
+
+def compress_task(text: str, limit: int = 1200) -> str:
+    """Deterministically normalize task text before model routing."""
+    return re.sub(r"\s+", " ", str(text)).strip()[:limit]
 
 
 def run_test() -> int:

@@ -1,0 +1,39 @@
+{
+  "local_only": true,
+  "cloud_enabled": false,
+  "default_provider": "lm_studio",
+  "fallback_provider": "ollama",
+  "deterministic_fallback": true,
+  "providers": {
+    "lm_studio": {
+      "enabled": true,
+      "type": "openai_compatible",
+      "base_url": "http://127.0.0.1:1234/v1",
+      "fallback_urls": ["http://localhost:1234/v1"],
+      "models_endpoint": "/models",
+      "chat_endpoint": "/chat/completions",
+      "api_key_env": "LM_STUDIO_API_KEY",
+      "api_key_default": "lm-studio",
+      "timeout_seconds": 30
+    },
+    "ollama": {
+      "enabled": true,
+      "type": "ollama_native",
+      "base_url": "http://localhost:11434/api",
+      "openai_base_url": "http://localhost:11434/v1",
+      "models_endpoint": "/tags",
+      "chat_endpoint": "/chat",
+      "api_key_default": "ollama",
+      "timeout_seconds": 30
+    }
+  },
+  "routes": {
+    "compress": {"preferred_models": ["qwen2.5:0.5b", "llama3.2:1b", "phi-3-mini"], "max_tokens": 256, "temperature": 0.1},
+    "classify": {"preferred_models": ["qwen2.5:0.5b", "llama3.2:1b", "phi-3-mini"], "max_tokens": 256, "temperature": 0.0},
+    "general": {"preferred_models": ["qwen2.5:3b", "llama3.2:3b", "mistral-7b-instruct"], "max_tokens": 768, "temperature": 0.2},
+    "coding": {"preferred_models": ["qwen2.5-coder:7b", "deepseek-coder:6.7b", "codellama:7b"], "max_tokens": 1200, "temperature": 0.1},
+    "reasoning": {"preferred_models": ["qwen3:8b", "deepseek-r1:7b", "mistral-7b-instruct"], "max_tokens": 1500, "temperature": 0.2},
+    "vision": {"preferred_models": ["qwen2.5vl:7b", "llava:7b"], "max_tokens": 1000, "temperature": 0.1},
+    "security": {"preferred_models": ["qwen2.5-coder:7b", "mistral-7b-instruct", "llama3.2:3b"], "max_tokens": 1000, "temperature": 0.1}
+  }
+}

@@ -301,8 +301,17 @@ def run_tick(verbose: bool = False) -> str:
 
 
 def safe_task_result(task: Dict[str, Any]) -> str:
-    text = task.get("text", "")
-    return "Safe local planning/logging task completed. Next checkpoint: review status and choose one approved action."
+    from hermes_model_router import ask_task
+    from hermes_refraction import compress_task
+
+    compressed = compress_task(task.get("text", ""))
+    routed = ask_task(compressed)
+    provider = routed.get("provider", "deterministic")
+    model = routed.get("model") or "none"
+    response = routed.get("response", "NO_LOCAL_MODEL_ONLINE")
+    if response == "NO_LOCAL_MODEL_ONLINE":
+        response = "Safe deterministic planning completed. Next checkpoint: review status and choose one approved action."
+    return f"{response} [router: {provider}/{model}]"
 
 
 def cmd_status(_: argparse.Namespace) -> None:
@@ -325,6 +334,12 @@ def cmd_provider(_: argparse.Namespace) -> None:
     from hermes_provider import print_provider_status
 
     print_provider_status()
+
+
+def cmd_router(_: argparse.Namespace) -> None:
+    from hermes_model_router import print_status
+
+    print_status()
 
 
 def cmd_add(args: argparse.Namespace) -> None:
@@ -794,6 +809,7 @@ def build_parser() -> argparse.ArgumentParser:
     sub = p.add_subparsers(dest="command", required=True)
     sub.add_parser("status").set_defaults(func=cmd_status)
     sub.add_parser("provider").set_defaults(func=cmd_provider)
+    sub.add_parser("router").set_defaults(func=cmd_router)
     a = sub.add_parser("add"); a.add_argument("text"); a.set_defaults(func=cmd_add)
     a = sub.add_parser("tick"); a.add_argument("text", nargs="*"); a.set_defaults(func=cmd_tick)
     sub.add_parser("run-once").set_defaults(func=cmd_run_once)
