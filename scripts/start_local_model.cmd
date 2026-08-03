@@ -1,6 +1,10 @@
 @echo off
 setlocal
 
+rem LM_API_TOKEN is a legacy remote-link token. Never pass a stale user value
+rem into the local LM Studio daemon; local loopback mode does not require it.
+set "LM_API_TOKEN="
+
 set "HERMES_MODEL=qwen/qwen3.5-4b"
 set "HERMES_MODEL_DOWNLOAD=qwen/qwen3.5-4b@q4_k_m"
 set "HERMES_MODEL_ID=hermes-free"

@@ -258,3 +258,10 @@ def test_high_risk_tick_does_not_call_model_router(monkeypatch):
     monkeypatch.setattr(hermes_employee, "append_log", lambda *_args, **_kwargs: None)
     monkeypatch.setattr(hermes_employee, "safe_task_result", lambda *_args: pytest.fail("router crossed approval gate"))
     assert hermes_employee.run_tick().startswith("PROPOSED/HIGH-RISK")
+
+
+def test_local_model_startup_does_not_pass_legacy_token_to_lm_studio():
+    script = (ROOT / "scripts" / "start_local_model.cmd").read_text(encoding="utf-8")
+    clear_token = script.index('set "LM_API_TOKEN="')
+    start_daemon = script.index("lms daemon up")
+    assert clear_token < start_daemon
