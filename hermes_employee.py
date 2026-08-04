@@ -13,6 +13,7 @@ import re
 import py_compile
 import sys
 import time
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -719,6 +720,175 @@ def cmd_validate(_: argparse.Namespace) -> None:
     print("VALIDATE: OK")
 
 
+def _growth_timestamp() -> str:
+    return datetime.now().astimezone().isoformat()
+
+
+def _growth_values(value: str) -> List[str]:
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def cmd_growth_observe(args: argparse.Namespace) -> None:
+    from hermes_growth.contracts import GrowthObservation, ObservationKind, RiskClass
+    from hermes_growth.observations import ObservationStore
+
+    item = GrowthObservation(
+        observation_id=args.id or f"obs-{uuid.uuid4().hex}",
+        timestamp=_growth_timestamp(),
+        project_id=args.project,
+        task_id=args.task,
+        task_class=args.task_class,
+        kind=ObservationKind(args.kind),
+        skill_id=args.skill,
+        skill_version=args.version,
+        expected_outcome=args.expected,
+        actual_outcome=args.actual,
+        success=args.success,
+        confidence=args.confidence,
+        retry_count=args.retries,
+        latency_ms=args.latency_ms,
+        operator_correction=args.correction,
+        evidence=_growth_values(args.evidence),
+        affected_modules=_growth_values(args.modules),
+        risk_class=RiskClass(args.risk),
+        provenance=_growth_values(args.provenance),
+    )
+    ObservationStore().append(item)
+    print(json.dumps(item.to_dict(), indent=2, ensure_ascii=False))
+
+
+def cmd_growth_observations(_: argparse.Namespace) -> None:
+    from hermes_growth.observations import ObservationStore
+
+    print(json.dumps([item.to_dict() for item in ObservationStore().observations()], indent=2))
+
+
+def cmd_growth_gaps(_: argparse.Namespace) -> None:
+    from hermes_growth.gap_detector import GapDetector
+
+    print(json.dumps([item.to_dict() for item in GapDetector().detect()], indent=2))
+
+
+def cmd_growth_reflect(args: argparse.Namespace) -> None:
+    from hermes_growth.contracts import RecommendedResponse, Reflection
+    from hermes_growth.reflection import ReflectionStore
+
+    item = Reflection(
+        reflection_id=args.id or f"reflection-{uuid.uuid4().hex}",
+        timestamp=_growth_timestamp(),
+        project_id=args.project,
+        task_id=args.task,
+        intended_result=args.intended,
+        actual_result=args.actual,
+        evidence_references=_growth_values(args.evidence),
+        worked=_growth_values(args.worked),
+        failed=_growth_values(args.failed),
+        disproved_assumptions=_growth_values(args.disproved),
+        corrections=_growth_values(args.corrections),
+        reusable_lessons=_growth_values(args.lessons),
+        change_type=RecommendedResponse(args.change_type),
+        next_checkpoint=args.next_checkpoint,
+    )
+    ReflectionStore().append(item)
+    print(json.dumps(item.to_dict(), indent=2))
+
+
+def cmd_growth_feedback(args: argparse.Namespace) -> None:
+    from hermes_growth.contracts import FeedbackScope, FeedbackStatus, GrowthFeedback
+    from hermes_growth.feedback import FeedbackStore
+
+    item = GrowthFeedback(
+        feedback_id=args.id or f"feedback-{uuid.uuid4().hex}",
+        timestamp=_growth_timestamp(),
+        status=FeedbackStatus(args.status),
+        contributor=args.contributor,
+        project_id=args.project,
+        task_id=args.task,
+        skill_id=args.skill,
+        skill_version=args.version,
+        concrete_correction=args.correction,
+        reason=args.reason,
+        evidence=_growth_values(args.evidence),
+        scope=FeedbackScope(args.scope),
+        operator_approved=args.operator_approved,
+    )
+    FeedbackStore().append(item)
+    print(json.dumps(item.to_dict(), indent=2))
+
+
+def cmd_growth_status(_: argparse.Namespace) -> None:
+    from hermes_growth.feedback import growth_status
+
+    print(json.dumps(growth_status(), indent=2))
+
+
+def _add_growth_parser(sub: argparse._SubParsersAction) -> None:
+    from hermes_growth.contracts import (
+        FeedbackScope,
+        FeedbackStatus,
+        ObservationKind,
+        RecommendedResponse,
+        RiskClass,
+    )
+
+    growth = sub.add_parser("growth", help="inspect and record local growth evidence")
+    commands = growth.add_subparsers(dest="growth_command", required=True)
+    observe = commands.add_parser("observe")
+    observe.add_argument("--id", default="")
+    observe.add_argument("--project", required=True)
+    observe.add_argument("--task", required=True)
+    observe.add_argument("--task-class", required=True)
+    observe.add_argument("--kind", choices=[item.value for item in ObservationKind], required=True)
+    observe.add_argument("--skill", required=True)
+    observe.add_argument("--version", required=True)
+    observe.add_argument("--expected", required=True)
+    observe.add_argument("--actual", required=True)
+    observe.add_argument("--success", action="store_true")
+    observe.add_argument("--confidence", type=float, default=0.5)
+    observe.add_argument("--retries", type=int, default=0)
+    observe.add_argument("--latency-ms", type=int, default=0)
+    observe.add_argument("--correction", default="")
+    observe.add_argument("--evidence", required=True)
+    observe.add_argument("--modules", required=True)
+    observe.add_argument("--risk", choices=[item.value for item in RiskClass], default=RiskClass.SAFE.value)
+    observe.add_argument("--provenance", default="local:operator")
+    observe.set_defaults(func=cmd_growth_observe)
+    commands.add_parser("observations").set_defaults(func=cmd_growth_observations)
+    commands.add_parser("gaps").set_defaults(func=cmd_growth_gaps)
+
+    reflect = commands.add_parser("reflect")
+    reflect.add_argument("--id", default="")
+    reflect.add_argument("--project", required=True)
+    reflect.add_argument("--task", required=True)
+    reflect.add_argument("--intended", required=True)
+    reflect.add_argument("--actual", required=True)
+    reflect.add_argument("--evidence", required=True)
+    reflect.add_argument("--worked", default="")
+    reflect.add_argument("--failed", default="")
+    reflect.add_argument("--disproved", default="")
+    reflect.add_argument("--corrections", default="")
+    reflect.add_argument("--lessons", default="")
+    reflect.add_argument("--change-type", choices=[item.value for item in RecommendedResponse], required=True)
+    reflect.add_argument("--next-checkpoint", required=True)
+    reflect.set_defaults(func=cmd_growth_reflect)
+
+    feedback = commands.add_parser("feedback")
+    feedback.add_argument("--id", default="")
+    feedback.add_argument("--status", choices=[item.value for item in FeedbackStatus], required=True)
+    feedback.add_argument("--contributor", required=True)
+    feedback.add_argument("--project", required=True)
+    feedback.add_argument("--task", required=True)
+    feedback.add_argument("--skill", required=True)
+    feedback.add_argument("--version", required=True)
+    feedback.add_argument("--correction", required=True)
+    feedback.add_argument("--reason", required=True)
+    feedback.add_argument("--evidence", required=True)
+    feedback.add_argument("--scope", choices=[item.value for item in FeedbackScope], required=True)
+    feedback.add_argument("--operator-approved", action="store_true")
+    feedback.set_defaults(func=cmd_growth_feedback)
+    commands.add_parser("status").set_defaults(func=cmd_growth_status)
+
+
 def default_skill_registry() -> List[Dict[str, Any]]:
     names = [
         ("oracle.compress", "Input Compression", "planning", "Compress messy input into objective/entities.", "low", False, False),
@@ -813,6 +983,7 @@ def build_parser() -> argparse.ArgumentParser:
     a = sub.add_parser("security-check"); a.add_argument("question", nargs="*"); a.set_defaults(func=cmd_security_check)
     sub.add_parser("validate").set_defaults(func=cmd_validate)
     sub.add_parser("validate-state").set_defaults(func=cmd_validate)
+    _add_growth_parser(sub)
     return p
 
 
