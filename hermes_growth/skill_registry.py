@@ -157,12 +157,10 @@ class SkillRegistry:
             raise PermissionError("explicit approval is required to set the initial baseline")
         manifest = self.get(skill_id, version)
         if manifest.status != SkillStatus.ACTIVE:
-            payload = manifest.to_dict()
-            payload["status"] = SkillStatus.ACTIVE.value
-            payload["rollback_version"] = version
-            manifest = SkillManifest.from_dict(payload)
+            raise ValueError(
+                "initial baseline manifest must already be ACTIVE with tests, evaluation evidence, and rollback target"
+            )
         value = self._read()
-        value["skills"][skill_id][version] = manifest.to_dict()
         value["active"][skill_id] = version
         self._write(value)
         self._audit("baseline_set", manifest, approved=True)
