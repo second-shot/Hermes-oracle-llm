@@ -9,7 +9,7 @@ def test_legacy_config_matches_local_first_policy() -> None:
     assert config["cloud_enabled"] is False
     assert config["primary_model"] == "fast_chat"
     assert config["llm"]["provider"] == "local_router"
-    assert config["llm"]["model"] == "auto"
+    assert config["llm"]["model"] == "hermes-free"
     assert set(config["routing"].values()) == {"local"}
 
 

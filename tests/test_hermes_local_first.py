@@ -11,13 +11,14 @@ import pytest
 from backend.services.credit_guard import CLOUD_UNLOCK_PHRASE, CreditGuard
 from backend.services.local_cache import LocalCache
 from backend.services.model_router import ModelRouter
-from backend.services.provider_registry import ProviderRegistry
+from backend.services.provider_registry import ProviderRegistry, sanitize_provider
 from backend.services.repo_indexer import RepoIndexer
 from backend.routes.llm import run_server
 from llm import client as llm_client
 
 
-CONFIG_PATH = Path("config/hermes.model.rotation.yaml")
+REPO_ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = REPO_ROOT / "config/hermes.model.rotation.yaml"
 
 
 def make_guard(tmp_path: Path) -> CreditGuard:
@@ -209,6 +210,24 @@ def test_local_client_omits_placeholder_auth_and_uses_discovered_model(monkeypat
     assert chat_payload["model"] == "actual-local-model"
 
 
+def test_sanitized_provider_keeps_token_selector_without_sending_redaction_marker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("LM_STUDIO_API_TOKEN", raising=False)
+    monkeypatch.delenv("LM_API_TOKEN", raising=False)
+    provider = make_registry(tmp_path).providers()["lmstudio_windows"]
+    provider_config = sanitize_provider("lmstudio_windows", provider)
+
+    assert provider_config["env_key"] == "LM_STUDIO_API_TOKEN"
+    assert provider_config["api_key"] == "<redacted>"
+    assert llm_client._provider_api_token(provider_config) is None
+
+    monkeypatch.setenv("LM_STUDIO_API_TOKEN", "test-token")
+
+    assert llm_client._provider_api_token(provider_config) == "test-token"
+
+
 def test_local_client_uses_env_token_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     requests = []
 
@@ -283,7 +302,7 @@ def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pyt
 
 
 def test_hermes_api_serves_models_and_chat(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir("C:/Users/max/Hermes-oracle-llm")
+    monkeypatch.chdir(REPO_ROOT)
     thread = threading.Thread(target=run_server, kwargs={"host": "127.0.0.1", "port": 8011}, daemon=True)
     thread.start()
     time.sleep(1.0)
