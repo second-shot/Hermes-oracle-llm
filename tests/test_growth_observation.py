@@ -8,6 +8,7 @@ import sys
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -40,7 +41,7 @@ def observation(
 ) -> GrowthObservation:
     return GrowthObservation(
         observation_id=observation_id,
-        timestamp="2026-08-04T12:00:00+00:00",
+        timestamp=datetime.now(UTC).isoformat(),
         project_id="hermes",
         task_id=f"task-{observation_id}",
         task_class=task_class,
@@ -79,6 +80,27 @@ def test_three_related_failures_create_one_gap(tmp_path: Path) -> None:
     assert gaps[0].supporting_observation_ids == ["obs-0", "obs-1", "obs-2"]
     assert gaps[0].frequency == 3
     assert gaps[0].recommended_response == RecommendedResponse.IMPROVE_SKILL
+
+
+def test_failures_older_than_configured_window_do_not_create_gap(tmp_path: Path) -> None:
+    store = ObservationStore(tmp_path)
+    stale_timestamp = (datetime.now(UTC) - timedelta(days=31)).isoformat()
+    for number in range(3):
+        store.append(replace(observation(f"stale-{number}"), timestamp=stale_timestamp))
+
+    assert GapDetector(tmp_path).detect() == []
+
+
+def test_growth_status_excludes_stale_failure_clusters(tmp_path: Path) -> None:
+    store = ObservationStore(tmp_path)
+    stale_timestamp = (datetime.now(UTC) - timedelta(days=31)).isoformat()
+    for number in range(3):
+        store.append(replace(observation(f"stale-status-{number}"), timestamp=stale_timestamp))
+
+    status = growth_status(tmp_path)
+
+    assert status["repeated_failure_clusters"] == []
+    assert status["open_gaps"] == []
 
 
 def test_repeated_missing_skill_recommends_new_skill_without_generating_it(tmp_path: Path) -> None:
