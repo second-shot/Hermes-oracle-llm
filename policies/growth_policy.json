@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "gap_detection": {
+    "minimum_related_failures": 3,
+    "minimum_operator_requests": 2,
+    "critical_structural_regressions": 1,
+    "cluster_window_days": 30
+  },
+  "promotion": {
+    "minimum_improvement_percent": 5,
+    "maximum_critical_regressions": 0,
+    "require_tests_before_tested": true,
+    "require_shadow_before_canary": true,
+    "require_canary_before_active": true,
+    "external_or_privileged_requires_approval": true
+  },
+  "quarantine": {
+    "maximum_error_rate_increase_percent": 5,
+    "negative_feedback_threshold": 3,
+    "permission_violation_threshold": 1,
+    "critical_test_failure_threshold": 1
+  },
+  "autopilot": {
+    "branch_prefixes": ["agent/", "codex/"],
+    "auto_push_verified_checkpoints": true,
+    "auto_merge_safe_pull_requests": true,
+    "merge_method": "squash",
+    "protected_paths": [
+      ".github/workflows/",
+      "policies/",
+      "config/",
+      "backend/services/credit_guard.py",
+      "backend/services/provider_registry.py",
+      "scripts/install",
+      "deploy/",
+      "infra/",
+      "migrations/"
+    ]
+  },
+  "authority": {
+    "automatic": [
+      "observe",
+      "cluster_gaps",
+      "draft_manifests",
+      "create_sandboxed_tests",
+      "run_local_evaluations",
+      "shadow_candidates",
+      "quarantine_unpromoted_candidates",
+      "write_audit_events"
+    ],
+    "approval_required": [
+      "merge_protected_path_changes",
+      "activate_external_skills",
+      "activate_privileged_skills",
+      "deploy",
+      "change_credentials",
+      "broaden_network_scope",
+      "broaden_filesystem_scope",
+      "external_posting_or_messaging",
+      "destructive_actions"
+    ]
+  }
+}
