@@ -45,9 +45,16 @@ def test_registry_rejects_duplicate_versions(tmp_path) -> None:
         registry.register(manifest("1.0.0"))
 
 
-def test_lifecycle_requires_evidence_and_preserves_rollback(tmp_path) -> None:
+def test_draft_cannot_become_initial_baseline(tmp_path) -> None:
     registry = SkillRegistry(tmp_path)
     registry.register(manifest("1.0.0"))
+    with pytest.raises(ValueError, match="must already be ACTIVE"):
+        registry.set_baseline("resale-research", "1.0.0", approved=True)
+
+
+def test_lifecycle_requires_evidence_and_preserves_rollback(tmp_path) -> None:
+    registry = SkillRegistry(tmp_path)
+    registry.register(manifest("1.0.0", status=SkillStatus.ACTIVE))
     baseline = registry.set_baseline("resale-research", "1.0.0", approved=True)
     assert baseline.status == SkillStatus.ACTIVE
 
@@ -85,7 +92,7 @@ def test_lifecycle_requires_evidence_and_preserves_rollback(tmp_path) -> None:
 
 def test_external_activation_requires_explicit_approval(tmp_path) -> None:
     registry = SkillRegistry(tmp_path)
-    registry.register(manifest("1.0.0"))
+    registry.register(manifest("1.0.0", status=SkillStatus.ACTIVE))
     registry.set_baseline("resale-research", "1.0.0", approved=True)
 
     candidate = manifest(
@@ -113,7 +120,7 @@ def test_external_activation_requires_explicit_approval(tmp_path) -> None:
 
 def test_audit_log_is_append_only_jsonl(tmp_path) -> None:
     registry = SkillRegistry(tmp_path)
-    registry.register(manifest("1.0.0"))
+    registry.register(manifest("1.0.0", status=SkillStatus.ACTIVE))
     registry.set_baseline("resale-research", "1.0.0", approved=True)
 
     records = [json.loads(line) for line in registry.audit_path.read_text(encoding="utf-8").splitlines()]
