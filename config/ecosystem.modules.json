@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "ecosystem": {
+    "name": "Hermes Oracle",
+    "promise": "A local-first operating layer that spends nothing by default and turns work into verified checkpoints.",
+    "operator": "MAXI",
+    "external_actions_default": "approval_required"
+  },
+  "modules": [
+    {
+      "id": "hermes-runtime",
+      "name": "Hermes Runtime",
+      "group": "core",
+      "status": "active",
+      "description": "Local task execution, routing and deterministic fallback.",
+      "entrypoint": "core/executor.py",
+      "required_files": [
+        "core/executor.py",
+        "llm/client.py",
+        "backend/routes/llm.py"
+      ],
+      "test_files": [
+        "tests/test_hermes_local_first.py",
+        "tests/test_backend_main.py"
+      ],
+      "upkeep": "Every pull request"
+    },
+    {
+      "id": "oracle",
+      "name": "Oracle",
+      "group": "intelligence",
+      "status": "active",
+      "description": "State, intent, confirmation, memory and next-action layer.",
+      "entrypoint": "oracle_v1/service.py",
+      "required_files": [
+        "oracle_v1/service.py",
+        "oracle_v1/state.py",
+        "oracle_v1/contracts.py"
+      ],
+      "test_files": [
+        "tests/test_oracle_api.py",
+        "tests/test_oracle_state.py"
+      ],
+      "upkeep": "Every pull request"
+    },
+    {
+      "id": "model-router",
+      "name": "Model Rotation",
+      "group": "intelligence",
+      "status": "active",
+      "description": "Task-aware local model rotation, cache-first execution and strict credit guard.",
+      "entrypoint": "backend/services/model_router.py",
+      "required_files": [
+        "backend/services/model_router.py",
+        "backend/services/provider_registry.py",
+        "backend/services/credit_guard.py",
+        "config/hermes.model.rotation.yaml"
+      ],
+      "test_files": [
+        "tests/test_hermes_local_first.py"
+      ],
+      "upkeep": "Weekly route audit"
+    },
+    {
+      "id": "memory-spine",
+      "name": "Memory Spine",
+      "group": "memory",
+      "status": "active",
+      "description": "Project-scoped memory with isolated mutable runtime state.",
+      "entrypoint": "memory/store.py",
+      "required_files": [
+        "memory/store.py",
+        "runtime_state.py"
+      ],
+      "test_files": [
+        "tests/test_memory_store.py",
+        "tests/test_runtime_state.py"
+      ],
+      "upkeep": "Weekly integrity audit"
+    },
+    {
+      "id": "guardian",
+      "name": "Guardian",
+      "group": "safety",
+      "status": "active",
+      "description": "Approval policies, secret scanning and defensive security boundaries.",
+      "entrypoint": "policies/approval_policy.json",
+      "required_files": [
+        "policies/approval_policy.json",
+        "docs/SECURITY_BOUNDARIES.md",
+        "tests/test_secret_scan.py"
+      ],
+      "test_files": [
+        "tests/test_secret_scan.py"
+      ],
+      "upkeep": "Every pull request"
+    },
+    {
+      "id": "resale-engine",
+      "name": "Resale Engine",
+      "group": "workflow",
+      "status": "incubating",
+      "description": "Research, valuation and daily action queue without external posting.",
+      "entrypoint": "skills/skill_registry.json",
+      "required_files": [
+        "skills/skill_registry.json",
+        "docs/DATA_SOURCING.md"
+      ],
+      "test_files": [],
+      "upkeep": "Promote only after contract tests"
+    },
+    {
+      "id": "research-engine",
+      "name": "Research Engine",
+      "group": "workflow",
+      "status": "incubating",
+      "description": "Evidence-scored research with citations and trust policy.",
+      "entrypoint": "data/sources/source_registry.json",
+      "required_files": [
+        "data/sources/source_registry.json",
+        "policies/source_trust_policy.json"
+      ],
+      "test_files": [],
+      "upkeep": "Promote only after evidence tests"
+    },
+    {
+      "id": "openai-bridge",
+      "name": "OpenAI Bridge",
+      "group": "provider",
+      "status": "locked",
+      "description": "Optional OpenAI-compatible bridge. Never used automatically.",
+      "entrypoint": "llm/client.py",
+      "required_files": [
+        "llm/client.py",
+        "backend/services/credit_guard.py"
+      ],
+      "test_files": [
+        "tests/test_hermes_local_first.py"
+      ],
+      "upkeep": "Remain locked; review before each explicit use"
+    }
+  ]
+}
