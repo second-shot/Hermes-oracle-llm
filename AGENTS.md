@@ -13,21 +13,28 @@ For every implementation checkpoint:
 5. Commit only the checkpoint files with a clear message.
 6. Push the branch immediately.
 7. Create or update one pull request; do not create overlapping PRs for the same goal.
-8. Enable GitHub native auto-merge with squash after checks pass for safe changes.
-9. Continue to the next checkpoint only after the branch is pushed and the PR state is recorded.
-10. Update the governing GitHub issue with the commit, tests, PR and next checkpoint.
+8. Watch the pull-request checks to completion.
+9. Merge safe checkpoints with squash after every required check passes.
+10. Update the governing GitHub issue with the commit, tests, PR, merge result and next checkpoint.
 
-## Native auto-merge command
+## Required merge commands
 
-After pushing and opening the PR:
+After pushing and opening the PR, first try GitHub native auto-merge:
 
 ```bash
 gh pr merge --auto --squash --delete-branch
 ```
 
-Use native auto-merge rather than a custom workflow that merges unverified code.
+If repository auto-merge is disabled, do not stop at the PR. Watch the checks and merge the safe checkpoint directly after they pass:
 
-## Changes that may auto-merge after green checks
+```bash
+gh pr checks --watch
+gh pr merge --squash --delete-branch
+```
+
+A completed checkpoint is not delivered until it is pushed and either merged or explicitly marked review-required.
+
+## Changes that may merge automatically after green checks
 
 - local application logic;
 - tests and fixtures;
