@@ -24,10 +24,8 @@ def manifest(
         output_schema={"type": "object"},
         risk_class=risk,
         status=status,
-        test_paths=["tests/test_resale_research.py"] if status != SkillStatus.DRAFT else [],
-        evaluation_paths=["evaluations/resale-research.json"]
-        if status in {SkillStatus.SHADOW, SkillStatus.CANARY, SkillStatus.ACTIVE}
-        else [],
+        test_paths=["tests/test_resale_research.py"],
+        evaluation_paths=["evaluations/resale-research.json"],
         approval_required=approval_required,
         rollback_version=version if status == SkillStatus.ACTIVE else None,
     )
