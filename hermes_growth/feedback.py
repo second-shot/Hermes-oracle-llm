@@ -4,7 +4,7 @@ from collections import Counter
 from pathlib import Path
 
 from hermes_growth.contracts import FeedbackScope, FeedbackStatus, GrowthFeedback
-from hermes_growth.gap_detector import GapDetector
+from hermes_growth.gap_detector import GapDetector, recent_observations
 from hermes_growth.observations import ObservationStore
 from hermes_growth.reflection import ReflectionStore
 from hermes_growth.skill_registry import default_growth_root
@@ -58,7 +58,9 @@ def growth_status(root: str | Path | None = None) -> dict[str, object]:
         gaps = GapDetector(growth_root).detect(observations)
         reflections = ReflectionStore(growth_root).reflections()
         feedback = FeedbackStore(growth_root).feedback()
-        failure_counts = Counter(item.task_class for item in observations if not item.success)
+        failure_counts = Counter(
+            item.task_class for item in recent_observations(observations) if not item.success
+        )
         unresolved = [
             item.feedback_id
             for item in feedback
