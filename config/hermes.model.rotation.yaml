@@ -40,6 +40,15 @@ routing:
     slow_model_minutes: 10
     overheated_device_minutes: 20
 
+fallback:
+  openrouter_free_models:
+    - "openrouter/free-model-only"
+  ollama_models:
+    - "qwen2.5:3b"
+    - "llama3.2:3b"
+  temporary_failure_cooldown_seconds: 300
+  authentication_failure_cooldown_seconds: 300
+
 providers:
   lmstudio_windows:
     enabled: true

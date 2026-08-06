@@ -42,6 +42,13 @@ def make_router(tmp_path: Path) -> ModelRouter:
     )
 
 
+def runtime_cloud_config() -> dict:
+    return {
+        "cloud_enabled": True,
+        "llm": {"provider": "openai", "model": "gpt-4o-mini"},
+    }
+
+
 def test_paid_cloud_provider_is_blocked_by_default(tmp_path: Path) -> None:
     guard = make_guard(tmp_path)
 
@@ -151,6 +158,188 @@ def test_missing_lm_studio_server_does_not_crash_hermes(tmp_path: Path, monkeypa
     result = router.run_task("help me plan a task", lambda _attempt: {"result": "should not run"})
 
     assert result["error"] == "local-runtime-missing"
+
+
+@pytest.mark.parametrize(
+    ("primary_failure", "openrouter_failure"),
+    [
+        (
+            {
+                "error": "provider-failure",
+                "failure_reason": "http_402_payment_required",
+                "retryable": True,
+                "cooldown_seconds": 900,
+            },
+            {
+                "error": "provider-failure",
+                "failure_reason": "http_429_rate_limit",
+                "retryable": True,
+                "cooldown_seconds": 300,
+            },
+        ),
+        (
+            {
+                "error": "provider-failure",
+                "failure_reason": "insufficient_credits",
+                "retryable": True,
+                "cooldown_seconds": 900,
+            },
+            TimeoutError("openrouter timed out"),
+        ),
+        (
+            {
+                "error": "provider-failure",
+                "failure_reason": "exhausted_quota",
+                "retryable": True,
+                "cooldown_seconds": 900,
+            },
+            {
+                "error": "provider-failure",
+                "failure_reason": "model_unavailable",
+                "retryable": True,
+                "cooldown_seconds": 600,
+            },
+        ),
+        (
+            OSError("primary provider unavailable"),
+            {
+                "error": "provider-failure",
+                "failure_reason": "connection_failure",
+                "retryable": True,
+                "cooldown_seconds": 120,
+            },
+        ),
+    ],
+)
+def test_router_falls_back_in_deterministic_order_without_losing_context(
+    tmp_path: Path,
+    primary_failure,
+    openrouter_failure,
+) -> None:
+    router = make_router(tmp_path)
+    router.config["fallback"] = {"openrouter_free_models": ["openrouter/free-model"]}
+
+    memory_snapshots: list[object] = []
+    repo_indexes: list[object] = []
+    calls: list[tuple[str, str]] = []
+
+    def infer(attempt: dict) -> dict:
+        provider_name = attempt["provider"]["name"]
+        calls.append((provider_name, attempt["model"]))
+        memory_snapshots.append(attempt.get("memory"))
+        repo_indexes.append(attempt.get("repo_index"))
+        if provider_name == "openai":
+            if isinstance(primary_failure, Exception):
+                raise primary_failure
+            return primary_failure
+        if provider_name == "openrouter_free":
+            if isinstance(openrouter_failure, Exception):
+                raise openrouter_failure
+            return openrouter_failure
+        return {
+            "result": "local ollama recovered the task",
+            "meta": {"provider": provider_name, "model": attempt["model"]},
+        }
+
+    result = router.run_task(
+        "debug this repo bug and inspect the traceback carefully",
+        infer,
+        runtime_config=runtime_cloud_config(),
+        mentioned_files=["src/main.py"],
+    )
+
+    assert calls == [
+        ("openai", "gpt-4o-mini"),
+        ("openrouter_free", "openrouter/free-model"),
+        ("ollama", "qwen2.5:3b"),
+    ]
+    assert result["result"] == "local ollama recovered the task"
+    assert result["meta"]["provider"] == "ollama"
+    assert result["fallback_notice"] == "Fallback used: openai -> openrouter_free -> ollama/qwen2.5:3b."
+    assert all(snapshot == {"recent": ["cached project context"]} for snapshot in memory_snapshots)
+    assert repo_indexes[0] == repo_indexes[1] == repo_indexes[2]
+
+    audit_entries = json.loads((tmp_path / ".hermes" / "logs" / "model_router_audit.json").read_text(encoding="utf-8"))
+    assert audit_entries[-1]["final_provider"] == "ollama"
+    assert audit_entries[-1]["attempts"][0]["failure_reason"] in {
+        "http_402_payment_required",
+        "insufficient_credits",
+        "exhausted_quota",
+        "provider_unavailable",
+    }
+    assert "debug this repo bug" not in json.dumps(audit_entries[-1])
+    assert "test-token" not in json.dumps(audit_entries[-1])
+
+
+def test_router_places_temporarily_failing_providers_on_cooldown(tmp_path: Path) -> None:
+    router = make_router(tmp_path)
+    router.config["fallback"] = {"openrouter_free_models": ["openrouter/free-model"]}
+    calls: list[tuple[str, str]] = []
+
+    def infer(attempt: dict) -> dict:
+        provider_name = attempt["provider"]["name"]
+        calls.append((provider_name, attempt["model"]))
+        if provider_name == "openai":
+            return {
+                "error": "provider-failure",
+                "failure_reason": "http_429_rate_limit",
+                "retryable": True,
+                "cooldown_seconds": 300,
+            }
+        if provider_name == "openrouter_free":
+            return {
+                "error": "provider-failure",
+                "failure_reason": "provider_unavailable",
+                "retryable": True,
+                "cooldown_seconds": 60,
+            }
+        return {"result": "local fallback", "meta": {"provider": provider_name, "model": attempt["model"]}}
+
+    first = router.run_task("Say Hermes is ready.", infer, runtime_config=runtime_cloud_config())
+    second = router.run_task("Say Hermes is ready again.", infer, runtime_config=runtime_cloud_config())
+
+    assert first["meta"]["provider"] == "ollama"
+    assert second["meta"]["provider"] == "ollama"
+    assert calls == [
+        ("openai", "gpt-4o-mini"),
+        ("openrouter_free", "openrouter/free-model"),
+        ("ollama", "qwen2.5:3b"),
+        ("ollama", "qwen2.5:3b"),
+    ]
+
+
+def test_router_does_not_retry_auth_failures_indefinitely(tmp_path: Path) -> None:
+    router = make_router(tmp_path)
+    router.config["fallback"] = {"openrouter_free_models": ["openrouter/free-model"]}
+    calls: list[tuple[str, str]] = []
+
+    def infer(attempt: dict) -> dict:
+        provider_name = attempt["provider"]["name"]
+        calls.append((provider_name, attempt["model"]))
+        if provider_name == "openai":
+            return {
+                "error": "provider-failure",
+                "failure_reason": "authentication_failed",
+                "retryable": False,
+                "cooldown_seconds": 300,
+            }
+        if provider_name == "openrouter_free":
+            return {
+                "error": "provider-failure",
+                "failure_reason": "authentication_failed",
+                "retryable": False,
+                "cooldown_seconds": 300,
+            }
+        return {"result": "ollama answered", "meta": {"provider": provider_name, "model": attempt["model"]}}
+
+    result = router.run_task("Give a short answer.", infer, runtime_config=runtime_cloud_config())
+
+    assert result["meta"]["provider"] == "ollama"
+    assert calls == [
+        ("openai", "gpt-4o-mini"),
+        ("openrouter_free", "openrouter/free-model"),
+        ("ollama", "qwen2.5:3b"),
+    ]
 
 
 def test_openrouter_is_not_called_when_cloud_auto_fallback_is_disabled(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

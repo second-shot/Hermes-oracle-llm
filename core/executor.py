@@ -1,5 +1,3 @@
-import json
-import os
 from core.prompt_compressor import compress
 from llm.client import call_model
 from memory.store import read_memory, update_memory
@@ -9,17 +7,8 @@ from backend.services.model_router import ModelRouter
 CACHE_SCHEMA_VERSION = "hermes-cache-v2-provider-adapter"
 
 
-def _provider_name(config):
-    return (
-        os.environ.get("HERMES_LLM_PROVIDER")
-        or config.get("llm", {}).get("provider")
-        or "stub"
-    ).lower()
-
-
 def execute_task(user_input, config):
     compressed = compress(user_input)
-    provider = _provider_name(config)
     prompt = {"task": compressed}
     router = ModelRouter(memory_reader=lambda _plan: read_memory(compressed))
 
@@ -36,16 +25,25 @@ def execute_task(user_input, config):
         prompt["repo_index"] = attempt.get("repo_index")
         return call_model(prompt, attempt_route, config)
 
-    result = router.run_task(user_input, infer)
+    result = router.run_task(user_input, infer, runtime_config=config)
     if result.get("error"):
-        if result["error"] == "local-runtime-missing" and config.get("cloud_enabled") is True:
+        if result["error"] == "local-runtime-missing" and config.get("cloud_enabled") is True and not result.get("fallback_notice"):
             fallback = call_model(prompt, "local", config)
             if fallback and fallback.get("result"):
                 response = {"result": fallback["result"], "cache": "miss"}
                 update_memory(compressed, response)
                 return response
-        return {"error": result["error"], "message": result.get("message"), "cache": "miss"}
+        return {
+            "error": result["error"],
+            "message": result.get("message"),
+            "cache": "miss",
+            "fallback_notice": result.get("fallback_notice"),
+        }
 
     response = {"result": result["result"], "cache": "hit" if result["source"] == "cache" else "miss"}
+    if result.get("meta"):
+        response["meta"] = result["meta"]
+    if result.get("fallback_notice"):
+        response["fallback_notice"] = result["fallback_notice"]
     update_memory(compressed, response)
     return response

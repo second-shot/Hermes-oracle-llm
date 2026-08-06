@@ -1,5 +1,6 @@
 import os
 import json
+import socket
 import urllib.error
 import urllib.request
 from dotenv import load_dotenv
@@ -21,6 +22,17 @@ PLACEHOLDER_LOCAL_API_KEYS = {
 }
 DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS = 20
 DEFAULT_LOCAL_INFERENCE_TIMEOUT_SECONDS = 120
+DEFAULT_REMOTE_TIMEOUT_SECONDS = 60
+
+
+def _error_result(provider_name, reason, retryable=True, cooldown_seconds=300):
+    return {
+        "error": "provider-failure",
+        "failure_reason": reason,
+        "retryable": retryable,
+        "cooldown_seconds": cooldown_seconds,
+        "meta": {"provider": provider_name},
+    }
 
 
 def _provider(config):
@@ -136,6 +148,41 @@ def _request_json(url, headers=None, payload=None, method="GET", timeout=DEFAULT
         return json.loads(response.read().decode("utf-8"))
 
 
+def _error_body(exc):
+    try:
+        return exc.read().decode("utf-8", errors="ignore")
+    except Exception:
+        return ""
+
+
+def _classify_http_error(provider_name, exc):
+    body = _error_body(exc).lower()
+    if exc.code == 402:
+        return _error_result(provider_name, "http_402_payment_required", retryable=True, cooldown_seconds=900)
+    if exc.code == 429:
+        return _error_result(provider_name, "http_429_rate_limit", retryable=True, cooldown_seconds=300)
+    if exc.code in {401, 403}:
+        return _error_result(provider_name, "authentication_failed", retryable=False, cooldown_seconds=300)
+    if exc.code == 404:
+        return _error_result(provider_name, "model_unavailable", retryable=True, cooldown_seconds=600)
+    if "insufficient credits" in body:
+        return _error_result(provider_name, "insufficient_credits", retryable=True, cooldown_seconds=900)
+    if "exhausted quota" in body or "quota exceeded" in body:
+        return _error_result(provider_name, "exhausted_quota", retryable=True, cooldown_seconds=900)
+    if exc.code >= 500:
+        return _error_result(provider_name, "provider_unavailable", retryable=True, cooldown_seconds=300)
+    return _error_result(provider_name, f"http_{exc.code}", retryable=True, cooldown_seconds=300)
+
+
+def _classify_transport_error(provider_name, exc):
+    message = str(exc).lower()
+    if isinstance(exc, TimeoutError) or isinstance(exc, socket.timeout) or "timed out" in message:
+        return _error_result(provider_name, "timeout", retryable=True, cooldown_seconds=300)
+    if "unavailable" in message:
+        return _error_result(provider_name, "provider_unavailable", retryable=True, cooldown_seconds=300)
+    return _error_result(provider_name, "connection_failure", retryable=True, cooldown_seconds=120)
+
+
 def _discover_local_model(base_url, headers, requested_model, timeout=DEFAULT_LOCAL_DISCOVERY_TIMEOUT_SECONDS):
     try:
         body = _request_json(f"{base_url}/models", headers=headers, method="GET", timeout=timeout)
@@ -183,13 +230,15 @@ def _openai_compatible_local_response(prompt, provider_name, provider_config, mo
             method="POST",
             timeout=inference_timeout,
         )
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, json.JSONDecodeError):
-        return None
+    except urllib.error.HTTPError as exc:
+        return _classify_http_error(provider_name, exc)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        return _classify_transport_error(provider_name, exc)
 
     try:
         result = body["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError):
-        return None
+        return _error_result(provider_name, "provider_unavailable", retryable=True, cooldown_seconds=300)
 
     return {
         "result": result,
@@ -280,19 +329,101 @@ def _openai_response(prompt, config):
         return _stub_response(prompt, f"OpenAI integration error: {str(e)}")
 
 
+def _openai_compatible_remote_response(prompt, provider_name, provider_config, model_name, params):
+    base_url = str(provider_config.get("base_url", "")).rstrip("/")
+    api_token = _provider_api_token(provider_config)
+    if not api_token:
+        return _error_result(provider_name, "authentication_failed", retryable=False, cooldown_seconds=300)
+
+    payload = {
+        "model": model_name,
+        "messages": _messages_for_local_runtime(prompt),
+        "temperature": params.get("temperature", 0.2),
+        "top_p": params.get("top_p", 0.8),
+        "max_tokens": params.get("max_tokens", 512),
+    }
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_token}"}
+    try:
+        body = _request_json(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            payload=payload,
+            method="POST",
+            timeout=int(provider_config.get("request_timeout_seconds", DEFAULT_REMOTE_TIMEOUT_SECONDS)),
+        )
+    except urllib.error.HTTPError as exc:
+        return _classify_http_error(provider_name, exc)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        return _classify_transport_error(provider_name, exc)
+
+    try:
+        result = body["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return _error_result(provider_name, "provider_unavailable", retryable=True, cooldown_seconds=300)
+
+    return {
+        "result": result,
+        "meta": {
+            "mode": "remote",
+            "provider": provider_name,
+            "model": model_name,
+        },
+    }
+
+
+def _ollama_native_response(prompt, provider_name, provider_config, model_name, params):
+    base_url = str(provider_config.get("base_url", "http://127.0.0.1:11434")).rstrip("/")
+    payload = {
+        "model": model_name,
+        "messages": _messages_for_local_runtime(prompt),
+        "stream": False,
+        "options": {
+            "temperature": params.get("temperature", 0.2),
+            "num_predict": params.get("max_tokens", 512),
+        },
+    }
+    try:
+        body = _request_json(
+            f"{base_url}/api/chat",
+            headers={"Content-Type": "application/json"},
+            payload=payload,
+            method="POST",
+            timeout=int(provider_config.get("request_timeout_seconds", DEFAULT_REMOTE_TIMEOUT_SECONDS)),
+        )
+    except urllib.error.HTTPError as exc:
+        return _classify_http_error(provider_name, exc)
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
+        return _classify_transport_error(provider_name, exc)
+
+    try:
+        result = body["message"]["content"]
+    except (KeyError, TypeError):
+        return _error_result(provider_name, "provider_unavailable", retryable=True, cooldown_seconds=300)
+
+    return {
+        "result": result,
+        "meta": {
+            "mode": "local",
+            "provider": provider_name,
+            "model": model_name,
+        },
+    }
+
+
 def call_model(prompt, route, config):
     if isinstance(route, dict):
         provider_name = route.get("provider", "stub")
         provider_config = route.get("provider_config", {})
         model_name = route.get("model", "unknown-model")
         params = route.get("params", {})
-        if route.get("kind") != "local":
+        if route.get("kind") not in {"local", "provider"}:
             return _stub_response(prompt, f"route '{route}' is not implemented")
         if provider_name in {"lmstudio_windows", "llama_cpp_server"}:
-            local_response = _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params)
-            if local_response is not None:
-                return local_response
-            return None
+            return _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params)
+        if provider_name in {"openai", "openrouter", "openrouter_free"}:
+            return _openai_compatible_remote_response(prompt, provider_name, provider_config, model_name, params)
+        if provider_name == "ollama":
+            return _ollama_native_response(prompt, provider_name, provider_config, model_name, params)
         if provider_name == "mlx_mac":
             return _local_runtime_response(prompt, provider_name, model_name)
         return _stub_response(prompt, f"provider '{provider_name}' is blocked or not implemented")

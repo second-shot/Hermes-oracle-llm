@@ -7,6 +7,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
+from backend.services.model_router import ModelRouter
 from backend.services.provider_registry import DEFAULT_CONFIG_PATH, load_rotation_config
 from core.executor import execute_task
 
@@ -57,6 +58,11 @@ def _completion_payload(payload: dict[str, Any], text: str) -> dict[str, Any]:
     }
 
 
+def provider_health() -> dict[str, Any]:
+    router = ModelRouter()
+    return router.provider_health(load_config())
+
+
 def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
     messages = payload.get("messages", [])
     user_text = ""
@@ -102,7 +108,16 @@ def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
     elif result_holder.get("error") is not None:
         text = f"Hermes local execution failed: {result_holder['error']}"
 
-    return _completion_payload(payload, text)
+    response = _completion_payload(payload, text)
+    if isinstance(result, dict):
+        response["meta"] = {
+            "provider": result.get("meta", {}).get("provider"),
+            "model": result.get("meta", {}).get("model"),
+            "fallback_notice": result.get("fallback_notice"),
+        }
+        if result.get("fallback_notice"):
+            response["fallback_notice"] = result["fallback_notice"]
+    return response
 
 
 class HermesAPIHandler(BaseHTTPRequestHandler):
@@ -127,7 +142,10 @@ class HermesAPIHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         if self.path in {"/", "/health", "/v1/health"}:
-            self._send_json(200, {"status": "ok", "service": "hermes"})
+            self._send_json(200, {"status": "ok", "service": "hermes", "provider_health": provider_health()})
+            return
+        if self.path == "/api/status":
+            self._send_json(200, {"status": "ok", "service": "hermes", "provider_health": provider_health()})
             return
         if self.path == "/v1/models":
             self._send_json(200, list_models())
