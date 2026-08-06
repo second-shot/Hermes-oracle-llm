@@ -12,6 +12,7 @@ from backend.services.credit_guard import CLOUD_UNLOCK_PHRASE, CreditGuard
 from backend.services.local_cache import LocalCache
 from backend.services.provider_registry import DEFAULT_CONFIG_PATH, ProviderRegistry, load_rotation_config
 from backend.services.repo_indexer import RepoIndexer
+from backend.services.routing_policy import RouteRequest, RouterPolicy, RoutingMode, load_capabilities
 
 
 class ModelRouter:
@@ -34,6 +35,13 @@ class ModelRouter:
         self.cache = cache or LocalCache(self.config_path, self.hermes_dir)
         self.repo_indexer = repo_indexer or RepoIndexer(self.project_root, self.config_path, self.hermes_dir)
         self.memory_reader = memory_reader or (lambda _plan: {})
+        policy_config = self.config.get("routing", {})
+        self.policy = RouterPolicy(policy_config)
+        capability_path = self.project_root / "config" / "model_capabilities.json"
+        try:
+            self.capabilities = load_capabilities(capability_path)
+        except (OSError, ValueError, TypeError, json.JSONDecodeError):
+            self.capabilities = []
         self.audit_log_path = self.hermes_dir / "logs" / "model_router_audit.json"
         self.cooldown_state_path = self.hermes_dir / "provider_cooldowns.json"
         self.audit_log_path.parent.mkdir(parents=True, exist_ok=True)
@@ -52,6 +60,33 @@ class ModelRouter:
         if any(token in text for token in ("architecture", "design", "plan", "system")):
             return "architecture_plan"
         return "simple_chat"
+
+    def routing_mode(self, runtime_config: dict[str, Any] | None = None) -> str:
+        runtime_config = runtime_config or {}
+        value = runtime_config.get("routing_mode", self.config.get("routing", {}).get("mode", "hybrid"))
+        try:
+            return RoutingMode(str(value).lower()).value
+        except ValueError:
+            raise ValueError("routing mode must be one of: auto, hybrid, manual") from None
+
+    def route_request(self, user_input: str, runtime_config: dict[str, Any] | None = None, **kwargs: Any) -> dict[str, Any]:
+        """Return an explainable, side-effect-free routing decision."""
+        runtime_config = runtime_config or {}
+        mode = self.routing_mode(runtime_config)
+        request = RouteRequest(
+            task_profile=self.policy.detect_task(user_input, has_attachments=bool(kwargs.get("has_attachments")), response_format=kwargs.get("response_format")),
+            privacy="local" if runtime_config.get("local_only") else "remote",
+            required_capabilities=frozenset(kwargs.get("required_capabilities", ())),
+            context_tokens=int(kwargs.get("context_tokens", 0)),
+            preferred_provider=runtime_config.get("preferred_provider"),
+            preferred_model=runtime_config.get("preferred_model") or runtime_config.get("llm", {}).get("model"),
+            local_only=bool(runtime_config.get("local_only")),
+            emergency_fallback=bool(runtime_config.get("emergency_fallback")),
+        )
+        self.policy.mode = RoutingMode(mode)
+        choices = self.policy.select(self.capabilities, request) if self.capabilities else []
+        return {"mode": mode, "task_profile": request.task_profile, "selected": choices[0][0].__dict__ if choices else None,
+                "reason": choices[0][1] if choices else "no compatible configured model", "fallback_active": len(choices) > 1}
 
     def plan_task(self, user_input: str) -> dict[str, Any]:
         task_route = self.classify_task(user_input)
@@ -144,13 +179,20 @@ class ModelRouter:
     def _openrouter_free_models(self) -> list[str]:
         fallback = self._fallback_config().get("openrouter_free_models")
         if isinstance(fallback, list) and fallback:
-            return [str(item).strip() for item in fallback if str(item).strip()]
+            return [self._coerce_model_name(item) for item in fallback if self._coerce_model_name(item)]
         legacy = self.config.get("cloud_unlock", {}).get("allowed_models_when_unlocked", [])
-        return [str(item).strip() for item in legacy if str(item).strip()]
+        return [self._coerce_model_name(item) for item in legacy if self._coerce_model_name(item)]
+
+    @staticmethod
+    def _coerce_model_name(item: Any) -> str:
+        if isinstance(item, dict) and len(item) == 1:
+            key, value = next(iter(item.items()))
+            return f"{str(key).strip().strip(chr(34))}:{str(value).strip().strip(chr(34))}"
+        return str(item).strip()
 
     def _ollama_models(self) -> list[str]:
         models = self._fallback_config().get("ollama_models", ["qwen2.5:3b", "llama3.2:3b"])
-        return [str(item).strip() for item in models if str(item).strip()]
+        return [self._coerce_model_name(item) for item in models if self._coerce_model_name(item)]
 
     def _primary_cloud_provider_name(self, runtime_config: dict[str, Any]) -> str | None:
         provider = str(runtime_config.get("llm", {}).get("provider", "")).strip().lower()
@@ -270,6 +312,18 @@ class ModelRouter:
                     repo_index,
                 )
             )
+
+        mode = self.routing_mode(runtime_config)
+        preferred_provider = str(runtime_config.get("preferred_provider", "")).strip()
+        preferred_model = str(runtime_config.get("preferred_model") or runtime_config.get("llm", {}).get("model", "")).strip()
+        local_only = bool(runtime_config.get("local_only", self.config.get("local_only", False)))
+        if local_only:
+            attempts = [item for item in attempts if item["provider"]["name"] in {"ollama", "lmstudio_windows", "llama_cpp_server", "mlx_mac"}]
+        if preferred_model:
+            preferred = [item for item in attempts if item["model"] == preferred_model and (not preferred_provider or item["provider"]["name"] == preferred_provider)]
+            attempts = preferred + [item for item in attempts if item not in preferred]
+        if mode == RoutingMode.MANUAL.value and not runtime_config.get("emergency_fallback"):
+            attempts = attempts[:1]
 
         seen: set[tuple[str, str]] = set()
         unique_attempts: list[dict[str, Any]] = []
@@ -413,6 +467,8 @@ class ModelRouter:
                 continue
 
             started = time.perf_counter()
+            attempt["request_id"] = str(runtime_config.get("request_id", "hermes-request"))
+            attempt["idempotency_key"] = str(runtime_config.get("idempotency_key", attempt["request_id"]))
             try:
                 result = model_inference(attempt)
             except Exception as exc:  # pragma: no cover - defensive classification
@@ -514,7 +570,15 @@ class ModelRouter:
             providers.append(provider_payload)
 
         latest = self._latest_audit_entry()
+        selected = self.route_request("status check", runtime_config).get("selected")
         return {
+            "router_status": "degraded" if any(item.get("cooldown_remaining_seconds", 0) for item in providers) else "healthy",
+            "active_mode": self.routing_mode(runtime_config),
+            "selected_provider": selected.get("provider") if isinstance(selected, dict) else None,
+            "selected_model": selected.get("model_id") if isinstance(selected, dict) else None,
+            "available_providers": sorted({str(item["provider"]) for item in providers if item.get("available")}),
+            "local_ollama_available": any(item.get("provider") == "ollama" and item.get("available") for item in providers),
+            "fallback_active": bool(latest and latest.get("fallback_notice")) if latest else False,
             "providers": providers,
             "last_fallback_notice": latest.get("fallback_notice") if latest else None,
         }

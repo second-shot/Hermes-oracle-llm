@@ -1,0 +1,9 @@
+{
+  "models": [
+    {"provider":"ollama","model_id":"qwen2.5:3b","local":true,"context_window":32768,"coding":true,"reasoning":true,"structured_output":true,"tool_calling":true,"streaming":true,"privacy":"local","latency_ms":900},
+    {"provider":"ollama","model_id":"llama3.2:3b","local":true,"context_window":8192,"coding":true,"structured_output":true,"streaming":true,"privacy":"local","latency_ms":700},
+    {"provider":"ollama","model_id":"qwen2.5:0.5b","local":true,"context_window":4096,"structured_output":true,"streaming":true,"privacy":"local","latency_ms":250},
+    {"provider":"openrouter","model_id":"openrouter/free-model-only","local":false,"context_window":32768,"vision":true,"coding":true,"reasoning":true,"structured_output":true,"tool_calling":true,"streaming":true,"privacy":"remote","estimated_cost":0.0,"latency_ms":1800},
+    {"provider":"openai","model_id":"gpt-4o-mini","local":false,"context_window":128000,"vision":true,"coding":true,"reasoning":true,"structured_output":true,"tool_calling":true,"streaming":true,"privacy":"remote","estimated_cost":0.15,"latency_ms":1200}
+  ]
+}
