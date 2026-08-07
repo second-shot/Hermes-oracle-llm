@@ -44,12 +44,24 @@ fallback:
   openrouter_free_models:
     - "openrouter/free-model-only"
   ollama_models:
-    - "qwen2.5:3b"
     - "llama3.2:3b"
+    - "qwen2.5:3b"
   temporary_failure_cooldown_seconds: 300
   authentication_failure_cooldown_seconds: 300
 
 providers:
+  ollama:
+    enabled: true
+    type: ollama_local
+    base_url: "http://127.0.0.1:11434"
+    health_path: "/api/tags"
+    model: "llama3.2:3b"
+    request_timeout_seconds: 120
+    model_discovery_timeout_seconds: 2
+    device: local
+    priority: 1
+    cost: 0
+
   lmstudio_windows:
     enabled: true
     type: openai_compatible
@@ -96,11 +108,12 @@ models:
   fast_chat:
     role: quick_chat
     provider_order:
+      - ollama
       - lmstudio_windows
       - llama_cpp_server
       - mlx_mac
     model_candidates:
-      - "hermes-free"
+      - "llama3.2:3b"
     params:
       temperature: 0.35
       top_p: 0.85
@@ -112,11 +125,12 @@ models:
   main_reasoning:
     role: planning_reasoning_architecture
     provider_order:
+      - ollama
       - lmstudio_windows
       - mlx_mac
       - llama_cpp_server
     model_candidates:
-      - "hermes-free"
+      - "llama3.2:3b"
     params:
       temperature: 0.25
       top_p: 0.80
@@ -128,11 +142,12 @@ models:
   coding:
     role: code_debug_patch_review
     provider_order:
+      - ollama
       - lmstudio_windows
       - llama_cpp_server
       - mlx_mac
     model_candidates:
-      - "hermes-free"
+      - "llama3.2:3b"
     params:
       temperature: 0.12
       top_p: 0.72
@@ -145,10 +160,11 @@ models:
   vision:
     role: screenshots_images_ui_pdf
     provider_order:
+      - ollama
       - lmstudio_windows
       - mlx_mac
     model_candidates:
-      - "hermes-free"
+      - "llama3.2:3b"
     params:
       temperature: 0.20
       top_p: 0.80
@@ -158,11 +174,12 @@ models:
   long_memory:
     role: summarise_compress_archive
     provider_order:
+      - ollama
       - lmstudio_windows
       - llama_cpp_server
       - mlx_mac
     model_candidates:
-      - "hermes-free"
+      - "llama3.2:3b"
     params:
       temperature: 0.10
       top_p: 0.70

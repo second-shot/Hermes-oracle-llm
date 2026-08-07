@@ -16,6 +16,11 @@ from backend.services.routing_policy import RouteRequest, RouterPolicy, RoutingM
 
 
 class ModelRouter:
+    CLOUD_FALLBACK_NOTICE = "Cloud credits exhausted. Switched to local offline model."
+    CLOUD_FALLBACK_UNAVAILABLE_MESSAGE = (
+        "Cloud credits exhausted and local Ollama is not available. Start Ollama or add credits."
+    )
+
     def __init__(
         self,
         config_path: str | Path = DEFAULT_CONFIG_PATH,
@@ -191,8 +196,34 @@ class ModelRouter:
         return str(item).strip()
 
     def _ollama_models(self) -> list[str]:
-        models = self._fallback_config().get("ollama_models", ["qwen2.5:3b", "llama3.2:3b"])
-        return [self._coerce_model_name(item) for item in models if self._coerce_model_name(item)]
+        models = self._fallback_config().get("ollama_models", ["llama3.2:3b"])
+        ordered = [self._coerce_model_name(item) for item in models if self._coerce_model_name(item)]
+        if "llama3.2:3b" in ordered:
+            ordered = ["llama3.2:3b", *[item for item in ordered if item != "llama3.2:3b"]]
+        return ordered
+
+    @staticmethod
+    def _is_local_provider(provider_name: str) -> bool:
+        return provider_name in {"ollama", "lmstudio_windows", "llama_cpp_server", "mlx_mac"}
+
+    @staticmethod
+    def _should_force_local_fallback(failure_reason: str) -> bool:
+        normalized = str(failure_reason or "").strip().lower()
+        return any(
+            token in normalized
+            for token in (
+                "http_402",
+                "payment_required",
+                "payment required",
+                "insufficient_credits",
+                "insufficient credits",
+                "quota exceeded",
+                "exhausted_quota",
+                "credit balance exhausted",
+                "provider_unavailable",
+                "provider unavailable",
+            )
+        )
 
     def _primary_cloud_provider_name(self, runtime_config: dict[str, Any]) -> str | None:
         provider = str(runtime_config.get("llm", {}).get("provider", "")).strip().lower()
@@ -233,6 +264,19 @@ class ModelRouter:
             except Exception:
                 continue
         return False
+
+    def _ollama_provider_config(self) -> dict[str, Any]:
+        configured = self.provider_registry.providers().get("ollama", {})
+        if configured:
+            return dict(configured)
+        return {
+            "enabled": True,
+            "type": "ollama_local",
+            "base_url": "http://127.0.0.1:11434",
+            "request_timeout_seconds": 120,
+            "model_discovery_timeout_seconds": 2,
+            "cost": 0,
+        }
 
     def _build_attempt(
         self,
@@ -301,11 +345,7 @@ class ModelRouter:
             attempts.append(
                 self._build_attempt(
                     "ollama",
-                    {
-                        "base_url": "http://127.0.0.1:11434",
-                        "request_timeout_seconds": 60,
-                        "cost": 0,
-                    },
+                    self._ollama_provider_config(),
                     model,
                     plan,
                     memory,
@@ -389,15 +429,23 @@ class ModelRouter:
         chain = " -> ".join([*failed, f"{final_provider}/{final_model}"])
         return f"Fallback used: {chain}."
 
-    def _error_response(self, plan: dict[str, Any], audit_attempts: list[dict[str, Any]]) -> dict[str, Any]:
+    def _error_response(
+        self,
+        plan: dict[str, Any],
+        audit_attempts: list[dict[str, Any]],
+        forced_local_notice: str | None = None,
+    ) -> dict[str, Any]:
         self.credit_guard.complete_task()
-        notice = None
-        if audit_attempts:
+        notice = forced_local_notice
+        if notice is None and audit_attempts:
             last = audit_attempts[-1]
             notice = self._fallback_notice(audit_attempts, str(last.get("provider")), str(last.get("model")))
+        message = "Local models were selected first, but no local model completed the task."
+        if forced_local_notice:
+            message = self.CLOUD_FALLBACK_UNAVAILABLE_MESSAGE
         return {
             "error": "local-runtime-missing",
-            "message": "Local models were selected first, but no local model completed the task.",
+            "message": message,
             "task_route": plan["task_route"],
             "unlock_phrase": CLOUD_UNLOCK_PHRASE,
             "fallback_notice": notice,
@@ -431,13 +479,26 @@ class ModelRouter:
             repo_index = self.repo_indexer.build_index(startup=False, mentioned_files=mentioned_files or [])
 
         audit_attempts: list[dict[str, Any]] = []
+        forced_local_notice: str | None = None
         attempts = self._candidate_attempts(plan, runtime_config, memory, repo_index)
         if not attempts:
-            return self._error_response(plan, audit_attempts)
+            return self._error_response(plan, audit_attempts, forced_local_notice)
 
         for attempt in attempts:
             provider_name = attempt["provider"]["name"]
             model_name = attempt["model"]
+            if forced_local_notice and not self._is_local_provider(provider_name):
+                audit_attempts.append(
+                    {
+                        "provider": provider_name,
+                        "model": model_name,
+                        "outcome": "skipped",
+                        "failure_reason": "forced_local_fallback",
+                        "fallback_decision": "switch to local ollama",
+                        "latency_ms": 0,
+                    }
+                )
+                continue
             cooldown_remaining = self._cooldown_remaining_seconds(provider_name, model_name)
             if cooldown_remaining > 0:
                 audit_attempts.append(
@@ -452,7 +513,7 @@ class ModelRouter:
                 )
                 continue
 
-            if provider_name == "ollama" and not runtime_config.get("cloud_enabled") and not self._provider_probe(provider_name, attempt["provider"]["provider"]):
+            if self._is_local_provider(provider_name) and not runtime_config.get("cloud_enabled") and not self.provider_registry._probe_provider(provider_name, attempt["provider"]["provider"]):
                 audit_attempts.append(
                     {
                         "provider": provider_name,
@@ -476,7 +537,7 @@ class ModelRouter:
             latency_ms = int((time.perf_counter() - started) * 1000)
 
             if result and result.get("result"):
-                notice = self._fallback_notice(audit_attempts, provider_name, model_name)
+                notice = forced_local_notice or self._fallback_notice(audit_attempts, provider_name, model_name)
                 response = {
                     "source": "model",
                     **result,
@@ -513,19 +574,23 @@ class ModelRouter:
                 return response
 
             failure = self._normalize_failure_result(result)
+            fallback_decision = "retry on next provider"
+            if not self._is_local_provider(provider_name) and self._should_force_local_fallback(failure["failure_reason"]):
+                forced_local_notice = self.CLOUD_FALLBACK_NOTICE
+                fallback_decision = "switch to local ollama"
             audit_attempts.append(
                 {
                     "provider": provider_name,
                     "model": model_name,
                     "outcome": "failed",
                     "failure_reason": failure["failure_reason"],
-                    "fallback_decision": "retry on next provider",
+                    "fallback_decision": fallback_decision,
                     "latency_ms": latency_ms,
                 }
             )
             self._set_cooldown(provider_name, model_name, failure["failure_reason"], int(failure["cooldown_seconds"]))
 
-        error_response = self._error_response(plan, audit_attempts)
+        error_response = self._error_response(plan, audit_attempts, forced_local_notice)
         self._append_audit_log(
             {
                 "timestamp": self._now().isoformat(),
@@ -576,9 +641,11 @@ class ModelRouter:
             "active_mode": self.routing_mode(runtime_config),
             "selected_provider": selected.get("provider") if isinstance(selected, dict) else None,
             "selected_model": selected.get("model_id") if isinstance(selected, dict) else None,
+            "execution_scope": "local" if selected and selected.get("local") else "cloud",
             "available_providers": sorted({str(item["provider"]) for item in providers if item.get("available")}),
             "local_ollama_available": any(item.get("provider") == "ollama" and item.get("available") for item in providers),
             "fallback_active": bool(latest and latest.get("fallback_notice")) if latest else False,
             "providers": providers,
             "last_fallback_notice": latest.get("fallback_notice") if latest else None,
+            "fallback_reason": latest.get("fallback_notice") if latest else None,
         }

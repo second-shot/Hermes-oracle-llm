@@ -107,13 +107,19 @@ def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
         text = str(result.get("result") or result.get("message") or text)
     elif result_holder.get("error") is not None:
         text = f"Hermes local execution failed: {result_holder['error']}"
+    if isinstance(result, dict) and result.get("fallback_notice"):
+        notice = str(result["fallback_notice"]).strip()
+        if notice and not text.startswith(notice):
+            text = f"{notice}\n\n{text}"
 
     response = _completion_payload(payload, text)
     if isinstance(result, dict):
         response["meta"] = {
             "provider": result.get("meta", {}).get("provider"),
             "model": result.get("meta", {}).get("model"),
+            "execution_scope": result.get("meta", {}).get("mode"),
             "fallback_notice": result.get("fallback_notice"),
+            "fallback_reason": result.get("fallback_notice"),
         }
         if result.get("fallback_notice"):
             response["fallback_notice"] = result["fallback_notice"]

@@ -178,11 +178,39 @@ class ProviderRegistry:
                 continue
         return False
 
+    def installed_models(self, provider_name: str = "ollama") -> list[str]:
+        """Return models reported by the provider without running inference."""
+        provider = self.providers().get(provider_name, {})
+        if not provider.get("enabled", False):
+            return []
+        base_url = str(provider.get("base_url", "")).rstrip("/")
+        if not base_url:
+            return []
+        target = f"{base_url}{provider.get('health_path', '/api/tags')}"
+        try:
+            request = urllib.request.Request(target, method="GET")
+            with urllib.request.urlopen(
+                request,
+                timeout=float(provider.get("model_discovery_timeout_seconds", 2)),
+            ) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except (OSError, ValueError, urllib.error.URLError, urllib.error.HTTPError):
+            return []
+        models = payload.get("models", []) if isinstance(payload, dict) else []
+        return [
+            str(item.get("name") or item.get("model"))
+            for item in models
+            if isinstance(item, dict) and (item.get("name") or item.get("model"))
+        ]
+
     def _probe_provider(self, provider_name: str, provider: dict[str, Any]) -> bool:
         if not provider.get("enabled", False):
             return False
         if provider_name == "mlx_mac":
             return sys.platform == "darwin" and "arm" in getattr(__import__("platform"), "machine")().lower()
+
+        if provider_name == "ollama":
+            return bool(self.installed_models(provider_name))
 
         base_url = str(provider.get("base_url", ""))
         if not base_url:
