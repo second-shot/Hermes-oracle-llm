@@ -636,6 +636,12 @@ class ModelRouter:
 
         latest = self._latest_audit_entry()
         selected = self.route_request("status check", runtime_config).get("selected")
+        ollama_attempt = next(
+            (item for item in attempts if item["provider"]["name"] == "ollama" and item.get("model") == "llama3.2:3b"),
+            None,
+        )
+        if ollama_attempt and any(item.get("provider") == "ollama" and item.get("available") for item in providers):
+            selected = {"provider": "ollama", "model_id": "llama3.2:3b", "local": True}
         return {
             "router_status": "degraded" if any(item.get("cooldown_remaining_seconds", 0) for item in providers) else "healthy",
             "active_mode": self.routing_mode(runtime_config),

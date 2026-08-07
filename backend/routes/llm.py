@@ -97,7 +97,10 @@ def chat_completion(payload: dict[str, Any]) -> dict[str, Any]:
     except Exception:
         _EXECUTOR_LOCK.release()
         raise
-    worker.join(timeout=5)
+    # A local 3B model may need longer than the old warm-up window on first use.
+    # Keep the request synchronous so callers receive the generated response and
+    # its provider metadata instead of a misleading "still warming up" response.
+    worker.join(timeout=120)
 
     text = "Hermes is warming up locally and returned a safe stub response."
     result = result_holder.get("value")

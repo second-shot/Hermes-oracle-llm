@@ -170,6 +170,40 @@ def check_lm_studio(rotation: dict[str, Any]) -> bool:
     return True
 
 
+def check_ollama(rotation: dict[str, Any]) -> bool:
+    runtime_name, provider = resolve_runtime(rotation)
+    base_url = str(provider.get("base_url", "http://127.0.0.1:11434")).rstrip("/")
+    health_path = str(provider.get("health_path", "/api/tags"))
+    try:
+        tags = _get_json(
+            f"{base_url}{health_path}",
+            timeout=float(provider.get("model_discovery_timeout_seconds", 2)),
+        )
+    except Exception:
+        _fail(f"Ollama is not reachable at {base_url}")
+        print("       Start Ollama, then retry Hermes.")
+        return False
+
+    available = [
+        str(item.get("name") or item.get("model"))
+        for item in tags.get("models", [])
+        if isinstance(item, dict) and (item.get("name") or item.get("model"))
+    ]
+    if not available:
+        _fail("Ollama is running but no models are installed")
+        print("       Run: ollama pull llama3.2:3b")
+        return False
+
+    expected = str(provider.get("model", "llama3.2:3b")).strip()
+    if expected and expected not in available:
+        _fail(f"Expected Ollama model {expected!r}, but installed: {', '.join(available)}")
+        print("       Run: ollama pull " + expected)
+        return False
+
+    _ok(f"Ollama model: {expected or available[0]}")
+    return True
+
+
 def check_existing_hermes(host: str, port: int) -> bool:
     url = f"http://{host}:{port}/v1/health"
     try:
@@ -207,7 +241,8 @@ def main() -> int:
         print(f"       Run: netstat -ano | findstr :{args.port}")
         return 1
 
-    runtime_ok = check_lm_studio(rotation) if rotation else False
+    runtime_name = str(rotation.get("hermes", {}).get("default_runtime", "lmstudio_windows")) if rotation else ""
+    runtime_ok = check_ollama(rotation) if runtime_name == "ollama" else (check_lm_studio(rotation) if rotation else False)
     if not runtime_ok and not args.allow_stub:
         checks_ok = False
     elif not runtime_ok:

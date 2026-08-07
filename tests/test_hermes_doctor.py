@@ -50,3 +50,26 @@ def test_existing_hermes_requires_expected_health_payload(monkeypatch) -> None:
     )
 
     assert hermes_doctor.check_existing_hermes("127.0.0.1", 8000) is True
+
+
+def test_ollama_check_uses_tags_and_requires_configured_model(monkeypatch) -> None:
+    requests = []
+
+    def fake_get_json(url, **_kwargs):
+        requests.append(url)
+        return {"models": [{"name": "llama3.2:3b"}]}
+
+    monkeypatch.setattr(hermes_doctor, "_get_json", fake_get_json)
+    rotation = {
+        "hermes": {"default_runtime": "ollama"},
+        "providers": {
+            "ollama": {
+                "base_url": "http://127.0.0.1:11434",
+                "health_path": "/api/tags",
+                "model": "llama3.2:3b",
+            }
+        },
+    }
+
+    assert hermes_doctor.check_ollama(rotation) is True
+    assert requests == ["http://127.0.0.1:11434/api/tags"]

@@ -1,6 +1,6 @@
 hermes:
   mode: local_first
-  default_runtime: lmstudio_windows
+  default_runtime: ollama
   credit_protection: strict
   cloud_auto_fallback: false
   require_manual_cloud_unlock: true
