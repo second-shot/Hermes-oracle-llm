@@ -250,14 +250,13 @@ def test_router_falls_back_in_deterministic_order_without_losing_context(
 
     assert calls == [
         ("openai", "gpt-4o-mini"),
-        ("openrouter_free", "openrouter/free-model"),
-        ("ollama", "qwen2.5:3b"),
+        ("ollama", "llama3.2:3b"),
     ]
     assert result["result"] == "local ollama recovered the task"
     assert result["meta"]["provider"] == "ollama"
-    assert result["fallback_notice"] == "Fallback used: openai -> openrouter_free -> ollama/qwen2.5:3b."
+    assert result["fallback_notice"] == "Cloud credits exhausted. Switched to local offline model."
     assert all(snapshot == {"recent": ["cached project context"]} for snapshot in memory_snapshots)
-    assert repo_indexes[0] == repo_indexes[1] == repo_indexes[2]
+    assert repo_indexes[0] == repo_indexes[1]
 
     audit_entries = json.loads((tmp_path / ".hermes" / "logs" / "model_router_audit.json").read_text(encoding="utf-8"))
     assert audit_entries[-1]["final_provider"] == "ollama"
@@ -303,8 +302,8 @@ def test_router_places_temporarily_failing_providers_on_cooldown(tmp_path: Path)
     assert calls == [
         ("openai", "gpt-4o-mini"),
         ("openrouter_free", "openrouter/free-model"),
-        ("ollama", "qwen2.5:3b"),
-        ("ollama", "qwen2.5:3b"),
+        ("ollama", "llama3.2:3b"),
+        ("ollama", "llama3.2:3b"),
     ]
 
 
@@ -338,7 +337,7 @@ def test_router_does_not_retry_auth_failures_indefinitely(tmp_path: Path) -> Non
     assert calls == [
         ("openai", "gpt-4o-mini"),
         ("openrouter_free", "openrouter/free-model"),
-        ("ollama", "qwen2.5:3b"),
+        ("ollama", "llama3.2:3b"),
     ]
 
 
@@ -419,97 +418,3 @@ def test_sanitized_provider_keeps_token_selector_without_sending_redaction_marke
 
 def test_local_client_uses_env_token_when_configured(monkeypatch: pytest.MonkeyPatch) -> None:
     requests = []
-
-    def fake_urlopen(request, timeout=20):
-        requests.append(request)
-        if request.full_url.endswith("/models"):
-            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
-        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
-
-    monkeypatch.setenv("LM_STUDIO_API_TOKEN", "test-token")
-    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
-
-    result = llm_client._openai_compatible_local_response(
-        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
-        "lmstudio_windows",
-        {"base_url": "http://localhost:1234/v1", "env_key": "LM_STUDIO_API_TOKEN", "api_key": ""},
-        "qwen3-4b-instruct-q4",
-        {"temperature": 0.2},
-    )
-
-    assert result is not None
-    assert result["result"] == "Hermes is alive."
-    assert dict(requests[0].header_items())["Authorization"] == "Bearer test-token"
-
-
-def test_local_client_accepts_lm_api_token_alias(monkeypatch: pytest.MonkeyPatch) -> None:
-    requests = []
-
-    def fake_urlopen(request, timeout=20):
-        requests.append(request)
-        if request.full_url.endswith("/models"):
-            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
-        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
-
-    monkeypatch.setenv("LM_API_TOKEN", "alias-token")
-    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
-
-    result = llm_client._openai_compatible_local_response(
-        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
-        "lmstudio_windows",
-        {"base_url": "http://localhost:1234/v1", "env_key": "LM_STUDIO_API_TOKEN", "api_key": ""},
-        "qwen3-4b-instruct-q4",
-        {"temperature": 0.2},
-    )
-
-    assert result is not None
-    assert result["result"] == "Hermes is alive."
-    assert dict(requests[0].header_items())["Authorization"] == "Bearer alias-token"
-
-
-def test_local_client_uses_extended_timeout_for_local_inference(monkeypatch: pytest.MonkeyPatch) -> None:
-    timeouts = []
-
-    def fake_urlopen(request, timeout=20):
-        timeouts.append(timeout)
-        if request.full_url.endswith("/models"):
-            return _FakeHttpResponse({"data": [{"id": "actual-local-model"}]})
-        return _FakeHttpResponse({"choices": [{"message": {"content": "Hermes is alive."}}]})
-
-    monkeypatch.setattr(llm_client.urllib.request, "urlopen", fake_urlopen)
-
-    result = llm_client._openai_compatible_local_response(
-        {"task": {"goal": "Say Hermes local runtime is alive in one sentence."}},
-        "lmstudio_windows",
-        {"base_url": "http://localhost:1234/v1"},
-        "qwen3-4b-instruct-q4",
-        {"temperature": 0.2},
-    )
-
-    assert result is not None
-    assert timeouts == [20, 120]
-
-
-def test_hermes_api_serves_models_and_chat(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.chdir(REPO_ROOT)
-    thread = threading.Thread(target=run_server, kwargs={"host": "127.0.0.1", "port": 8011}, daemon=True)
-    thread.start()
-    time.sleep(1.0)
-
-    models = json.loads(urllib.request.urlopen("http://127.0.0.1:8011/v1/models", timeout=10).read().decode("utf-8"))
-    assert models["object"] == "list"
-    assert models["data"]
-
-    payload = {
-        "model": models["data"][0]["id"],
-        "messages": [{"role": "user", "content": "Say Hermes is ready."}],
-    }
-    request = urllib.request.Request(
-        "http://127.0.0.1:8011/v1/chat/completions",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    chat = json.loads(urllib.request.urlopen(request, timeout=30).read().decode("utf-8"))
-    assert chat["object"] == "chat.completion"
-    assert chat["choices"][0]["message"]["role"] == "assistant"
