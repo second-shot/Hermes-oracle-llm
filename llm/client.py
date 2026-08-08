@@ -442,5 +442,5 @@ def call_model(prompt, route, config):
     if provider == "ollama":
         return _ollama_response(prompt, config)
     if provider in {"local", "local_router", "lmstudio", "lm_studio"}:
-        return _local_runtime_response(prompt, "local", config.get("llm", {}).get("model", "local-model"))
+        return _local_runtime_response(prompt, provider, config.get("llm", {}).get("model", "local-model"))
     return _stub_response(prompt)
