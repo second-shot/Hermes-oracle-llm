@@ -12,6 +12,16 @@ def test_fastapi_adapter_serves_health() -> None:
 
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["resale_agents"] == {"status": "unavailable"}
+
+
+def test_missing_optional_resale_agents_do_not_block_backend_startup() -> None:
+    client = TestClient(app)
+
+    response = client.get("/v1/resale/tasks")
+
+    assert response.status_code == 503
+    assert response.json()["detail"] == "Resale agents are not installed in this repository checkout."
 
 
 def test_fastapi_adapter_serves_chat(monkeypatch) -> None:

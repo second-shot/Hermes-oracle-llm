@@ -250,14 +250,13 @@ def test_router_falls_back_in_deterministic_order_without_losing_context(
 
     assert calls == [
         ("openai", "gpt-4o-mini"),
-        ("openrouter_free", "openrouter/free-model"),
-        ("ollama", "qwen2.5:3b"),
+        ("ollama", "llama3.2:3b"),
     ]
     assert result["result"] == "local ollama recovered the task"
     assert result["meta"]["provider"] == "ollama"
-    assert result["fallback_notice"] == "Fallback used: openai -> openrouter_free -> ollama/qwen2.5:3b."
+    assert result["fallback_notice"] == "Cloud credits exhausted. Switched to local offline model."
     assert all(snapshot == {"recent": ["cached project context"]} for snapshot in memory_snapshots)
-    assert repo_indexes[0] == repo_indexes[1] == repo_indexes[2]
+    assert repo_indexes[0] == repo_indexes[1]
 
     audit_entries = json.loads((tmp_path / ".hermes" / "logs" / "model_router_audit.json").read_text(encoding="utf-8"))
     assert audit_entries[-1]["final_provider"] == "ollama"
@@ -303,8 +302,8 @@ def test_router_places_temporarily_failing_providers_on_cooldown(tmp_path: Path)
     assert calls == [
         ("openai", "gpt-4o-mini"),
         ("openrouter_free", "openrouter/free-model"),
-        ("ollama", "qwen2.5:3b"),
-        ("ollama", "qwen2.5:3b"),
+        ("ollama", "llama3.2:3b"),
+        ("ollama", "llama3.2:3b"),
     ]
 
 
@@ -338,7 +337,7 @@ def test_router_does_not_retry_auth_failures_indefinitely(tmp_path: Path) -> Non
     assert calls == [
         ("openai", "gpt-4o-mini"),
         ("openrouter_free", "openrouter/free-model"),
-        ("ollama", "qwen2.5:3b"),
+        ("ollama", "llama3.2:3b"),
     ]
 
 

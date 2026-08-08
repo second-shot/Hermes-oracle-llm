@@ -99,11 +99,18 @@ def _local_runtime_response(prompt, provider_name, model_name):
 
 def _messages_for_local_runtime(prompt):
     task = _compressed_task(prompt)
-    memory = prompt.get("memory", {})
+    user_content = task.get("compressed_prompt") or task.get("goal") or "Help with the current task."
+
+    # Plain conversational chat must preserve the user's text exactly. Small
+    # local models can overreact to extra system framing or compressed control
+    # packets, so simple chat intentionally uses only the raw user message.
+    if isinstance(prompt, dict) and prompt.get("raw_chat"):
+        return [{"role": "user", "content": user_content}]
+
+    memory = prompt.get("memory", {}) if isinstance(prompt, dict) else {}
     memory_text = ""
     if memory:
         memory_text = f"\nRelevant memory/context:\n{json.dumps(memory, ensure_ascii=False)[:1200]}"
-    user_content = task.get("compressed_prompt") or task.get("goal") or "Help with the current task."
     return [
         {
             "role": "system",
@@ -273,7 +280,6 @@ def _ollama_response(prompt, config):
 
 def _openai_response(prompt, config):
     try:
-        # Priority for API key: config.llm.api_key -> OPENAI_API_KEY -> HERMES_OPENAI_API_KEY
         api_key = (
             config.get("llm", {}).get("api_key")
             or os.environ.get("OPENAI_API_KEY")
@@ -288,8 +294,6 @@ def _openai_response(prompt, config):
 
         client = OpenAI(api_key=api_key)
         task = _compressed_task(prompt)
-        
-        # Build the message from compressed task
         messages = [
             {
                 "role": "system",
@@ -300,19 +304,19 @@ def _openai_response(prompt, config):
                 "content": task.get("compressed_prompt", task.get("goal", ""))
             }
         ]
-        
+
         model = config.get("llm", {}).get("model", "gpt-4")
         temperature = config.get("llm", {}).get("temperature", 0.7)
-        
+
         response = client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=config.get("limits", {}).get("max_tokens", {}).get("text_reasoning", 100),
         )
-        
+
         result = response.choices[0].message.content
-        
+
         return {
             "result": result,
             "meta": {
@@ -322,7 +326,7 @@ def _openai_response(prompt, config):
                 "tokens_used": response.usage.total_tokens,
             },
         }
-    
+
     except APIError as e:
         return _stub_response(prompt, f"OpenAI API error: {str(e)}")
     except Exception as e:
@@ -420,21 +424,15 @@ def call_model(prompt, route, config):
             return _stub_response(prompt, f"route '{route}' is not implemented")
         if provider_name in {"lmstudio_windows", "llama_cpp_server"}:
             return _openai_compatible_local_response(prompt, provider_name, provider_config, model_name, params)
-        if provider_name in {"openai", "openrouter", "openrouter_free"}:
-            return _openai_compatible_remote_response(prompt, provider_name, provider_config, model_name, params)
         if provider_name == "ollama":
             return _ollama_native_response(prompt, provider_name, provider_config, model_name, params)
         if provider_name == "mlx_mac":
-            return _local_runtime_response(prompt, provider_name, model_name)
-        return _stub_response(prompt, f"provider '{provider_name}' is blocked or not implemented")
-
-    if route != "local":
-        return _stub_response(prompt, f"route '{route}' is not implemented")
+            return _mlx_response(prompt, config)
+        if provider_name == "openrouter_free":
+            return _openai_compatible_remote_response(prompt, provider_name, provider_config, model_name, params)
+        return _stub_response(prompt, f"provider '{provider_name}' is not implemented")
 
     provider = _provider(config)
-
-    if provider == "stub":
-        return _stub_response(prompt)
     if provider == "openai":
         return _openai_response(prompt, config)
     if provider == "mlx":
@@ -443,5 +441,6 @@ def call_model(prompt, route, config):
         return _openrouter_response(prompt, config)
     if provider == "ollama":
         return _ollama_response(prompt, config)
-
-    return _stub_response(prompt, f"unknown provider '{provider}'")
+    if provider in {"local", "local_router", "lmstudio", "lm_studio"}:
+        return _local_runtime_response(prompt, provider, config.get("llm", {}).get("model", "local-model"))
+    return _stub_response(prompt)

@@ -1,14 +1,26 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from backend.routes.llm import chat_completion, list_models, provider_health
-from resale_agents.service import ConflictError, ResaleAgentService
+
+try:
+    from resale_agents.service import ResaleAgentService
+except ModuleNotFoundError as exc:
+    if exc.name not in {"resale_agents", "resale_agents.service"}:
+        raise
+    ResaleAgentService = None
 
 
 app = FastAPI(title="Hermes Local API")
-resale_service = ResaleAgentService.from_repo_root()
+resale_service = ResaleAgentService.from_repo_root() if ResaleAgentService is not None else None
+
+
+def _require_resale_service():
+    if resale_service is None:
+        raise HTTPException(status_code=503, detail="Resale agents are not installed in this repository checkout.")
+    return resale_service
 
 
 def _sanitize_provider_health(payload: dict) -> dict:
@@ -49,7 +61,7 @@ def health() -> dict:
     return {
         "status": "ok",
         "service": "hermes",
-        "resale_agents": resale_service.health(),
+        "resale_agents": resale_service.health() if resale_service is not None else {"status": "unavailable"},
         "provider_health": _sanitize_provider_health(provider_health()),
     }
 
@@ -61,28 +73,29 @@ def api_status() -> dict:
 
 @app.post("/v1/resale/items", status_code=201)
 def capture_resale_item(payload: dict) -> dict:
-    return resale_service.capture_item(payload)
+    return _require_resale_service().capture_item(payload)
 
 
 @app.get("/v1/resale/items/{item_id}")
 def get_resale_item(item_id: str) -> dict:
-    return resale_service.get_item(item_id)
+    return _require_resale_service().get_item(item_id)
 
 
 @app.post("/v1/resale/items/{item_id}/run")
 def run_resale_workflow(item_id: str) -> dict:
-    results = resale_service.run_until_approval(item_id)
-    return {"item": resale_service.get_item(item_id), "results": [result.to_dict() for result in results]}
+    service = _require_resale_service()
+    results = service.run_until_approval(item_id)
+    return {"item": service.get_item(item_id), "results": [result.to_dict() for result in results]}
 
 
 @app.get("/v1/resale/tasks")
 def resale_tasks() -> dict:
-    return {"items": resale_service.list_tasks()}
+    return {"items": _require_resale_service().list_tasks()}
 
 
 @app.get("/v1/resale/approvals")
 def resale_approvals() -> dict:
-    return {"items": resale_service.list_approvals()}
+    return {"items": _require_resale_service().list_approvals()}
 
 
 @app.get("/models")
