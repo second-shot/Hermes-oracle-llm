@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from core import executor
+from llm import client as llm_client
 
 
 def test_execute_task_preserves_raw_simple_chat_and_skips_memory(monkeypatch):
@@ -43,5 +44,23 @@ def test_execute_task_preserves_raw_simple_chat_and_skips_memory(monkeypatch):
 
     assert captured["memory"] == {}
     assert captured["prompt"]["task"]["compressed_prompt"] == "Reply with exactly: ORANGE FALCON 5531"
+    assert captured["prompt"]["raw_chat"] is True
     assert "T:text_reasoning" not in captured["prompt"]["task"]["compressed_prompt"]
     assert result["result"] == "ORANGE FALCON 5531"
+
+
+def test_raw_chat_uses_only_user_message_without_system_wrapper():
+    prompt = {
+        "task": {
+            "goal": "Reply with exactly: SILVER COMET 8274",
+            "compressed_prompt": "Reply with exactly: SILVER COMET 8274",
+        },
+        "raw_chat": True,
+        "memory": {"stale": "must not be injected"},
+    }
+
+    messages = llm_client._messages_for_local_runtime(prompt)
+
+    assert messages == [
+        {"role": "user", "content": "Reply with exactly: SILVER COMET 8274"}
+    ]
