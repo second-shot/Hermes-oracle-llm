@@ -39,6 +39,7 @@ def execute_task(user_input, config):
         }
         prompt["memory"] = attempt.get("memory", {})
         prompt["repo_index"] = attempt.get("repo_index")
+        prompt["raw_chat"] = attempt.get("task_route") == "simple_chat"
         return call_model(prompt, attempt_route, config)
 
     result = router.run_task(user_input, infer, runtime_config=config)
