@@ -1,0 +1,31 @@
+# Keep the labeler workflow deterministic and non-destructive.
+# These labels are optional; the workflow succeeds even when no path matches.
+backend:
+  - any:
+      - changed-files:
+          - any-glob-to-any-file:
+              - "backend/**"
+              - "core/**"
+              - "agents/**"
+              - "hermes_employee.py"
+provider-routing:
+  - any:
+      - changed-files:
+          - any-glob-to-any-file:
+              - "config/**"
+              - "providers/**"
+              - "router/**"
+              - "**/*ollama*"
+              - "**/*lmstudio*"
+tests:
+  - any:
+      - changed-files:
+          - any-glob-to-any-file:
+              - "tests/**"
+              - "**/*test*"
+ci:
+  - any:
+      - changed-files:
+          - any-glob-to-any-file:
+              - ".github/workflows/**"
+              - ".github/labeler.yml"
