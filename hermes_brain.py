@@ -235,7 +235,7 @@ class HermesBrain:
 
 
 def _build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Hermes deterministic brain router")
+    parser = argparse.ArgumentParser(description="Mia deterministic brain router")
     sub = parser.add_subparsers(dest="command", required=True)
     route = sub.add_parser("route")
     route.add_argument("text")

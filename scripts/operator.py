@@ -88,10 +88,10 @@ def execute_operator_task(task, config, *, model_execute=None, resale_service=No
     if action:
         model_prompt = (
             f"User task: {task}\n"
-            f"Hermes route: {decision.route} -> {decision.specialist}\n"
+            f"Mia route: {decision.route} -> {decision.specialist}\n"
             f"Local action executed: {action}\n"
             f"Verified action result: {json.dumps(action_result, ensure_ascii=False, sort_keys=True)}\n"
-            f"Hermes verified next action: {next_action}\n"
+            f"Mia verified next action: {next_action}\n"
             "Briefly state the verified result and repeat that next action. Do not invent external actions."
         )
 
@@ -115,13 +115,13 @@ def execute_operator_task(task, config, *, model_execute=None, resale_service=No
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Hermes local operator')
+    parser = argparse.ArgumentParser(description='Mia local operator')
     modes = parser.add_mutually_exclusive_group()
     modes.add_argument('--task', help='Run one local model task')
     modes.add_argument('--smoke', action='store_true')
     modes.add_argument('--doctor', action='store_true')
     modes.add_argument('--serve', action='store_true')
-    modes.add_argument('--freebuff', action='store_true', help='Open Freebuff on the Hermes project')
+    modes.add_argument('--freebuff', action='store_true', help='Open Freebuff on the Mia project')
     modes.add_argument('--employee', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     os.chdir(ROOT)
@@ -163,10 +163,10 @@ def main():
         return run(f'Give one short tip for photographing a watch. Test {stamp}.')
     if args.task:
         return run(args.task)
-    print('Hermes local operator. Enter a task; type exit to stop.', flush=True)
+    print('Mia local operator. Enter a task; type exit to stop.', flush=True)
     while True:
         try:
-            task = input('\nHermes> ').strip()
+            task = input('\nMia> ').strip()
         except (EOFError, KeyboardInterrupt):
             return 0
         if task.lower() in {'exit', 'quit'}:

@@ -1,6 +1,10 @@
-# Hermes Runtime State
+# Mia local helper
 
-Hermes now stores mutable runtime state outside the repository by default.
+Mia is the personal helper in this repository. Hermes means the separate Nous Research AI app. See [IDENTITY.md](IDENTITY.md) for the canonical distinction and legacy runtime identifiers. Launch this helper with `start-mia.cmd`.
+
+## Legacy runtime state
+
+Mia currently stores mutable runtime state outside the repository by default.
 
 ## Default location
 
@@ -26,7 +30,7 @@ python hermes_employee.py status
 
 ## Migration behavior
 
-- Hermes copies recognized legacy runtime files from the repository into the runtime root on first use.
+- Mia copies recognized legacy runtime files from the repository into the runtime root on first use.
 - Migration is copy-not-move, so repository files remain as a backup.
 - Existing destination files win over older repository copies.
 - Migration completion is tracked in `migration.json`.
@@ -37,9 +41,9 @@ If runtime migration fails:
 
 1. Stop Hermes.
 2. Fix the destination directory or permissions.
-3. Re-run Hermes.
+3. Re-run Mia.
 
-Legacy repository files remain available because Hermes does not delete them during migration.
+Legacy repository files remain available because Mia does not delete them during migration.
 
 ## Repository hygiene
 

@@ -1,3 +1,4 @@
 @echo off
-call "%~dp0start-hermes.cmd" --doctor
+echo [legacy] This helper is Mia. Use check-mia.cmd for new shortcuts.
+call "%~dp0check-mia.cmd" %*
 exit /b %ERRORLEVEL%

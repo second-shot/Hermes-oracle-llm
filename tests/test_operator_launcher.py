@@ -78,7 +78,7 @@ def test_operator_task_routes_executes_records_and_returns_next_action(monkeypat
     def local_inference(prompt, config):
         assert "resale_agents.health" in prompt
         assert '"inventory_count": 0' in prompt
-        assert "Hermes verified next action: Capture one item with title, condition, and photos." in prompt
+        assert "Mia verified next action: Capture one item with title, condition, and photos." in prompt
         assert config["cloud_enabled"] is False
         return {
             "result": "Your resale inventory is empty. Capture one item with title, condition, and photos.",

@@ -177,21 +177,21 @@ def check_existing_hermes(host: str, port: int) -> bool:
     except Exception:
         return False
     if health.get("status") == "ok" and health.get("service") == "hermes":
-        _ok(f"Hermes API already running at http://{host}:{port}")
+        _ok(f"Mia API already running at http://{host}:{port}")
         return True
     return False
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="Diagnose and start Hermes safely on Windows.")
-    parser.add_argument("--start", action="store_true", help="Start the Hermes API after checks pass.")
+    parser = argparse.ArgumentParser(description="Diagnose and start Mia safely on Windows.")
+    parser.add_argument("--start", action="store_true", help="Start the Mia API after checks pass.")
     parser.add_argument("--allow-stub", action="store_true", help="Allow startup without an active LM Studio model.")
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8000)
     args = parser.parse_args()
 
     os.chdir(REPO_ROOT)
-    print(f"Hermes Doctor | repo={REPO_ROOT}")
+    print(f"Mia Doctor | repo={REPO_ROOT}")
 
     checks_ok = check_python()
     checks_ok = check_dependencies() and checks_ok
@@ -203,7 +203,7 @@ def main() -> int:
         return 0
 
     if _port_open(args.host, args.port):
-        _fail(f"Port {args.port} is occupied by a non-Hermes process")
+        _fail(f"Port {args.port} is occupied by a non-Mia process")
         print(f"       Run: netstat -ano | findstr :{args.port}")
         return 1
 
@@ -214,19 +214,19 @@ def main() -> int:
         _warn("Starting in deterministic stub mode because --allow-stub was supplied")
 
     if not checks_ok:
-        print("\nHermes is not ready. Correct the failed checks and run start-hermes.cmd again.")
+        print("\nMia is not ready. Correct the failed checks and run start-mia.cmd again.")
         return 1
 
     if not args.start:
-        print("\nHermes is ready. Run: start-hermes.cmd")
+        print("\nMia is ready. Run: start-mia.cmd")
         return 0
 
-    print(f"\nStarting Hermes API at http://{args.host}:{args.port}")
-    print("Keep this window open. Press Ctrl+C to stop Hermes.")
+    print(f"\nStarting Mia API at http://{args.host}:{args.port}")
+    print("Keep this window open. Press Ctrl+C to stop Mia.")
     try:
         run_server(host=args.host, port=args.port)
     except OSError as exc:
-        _fail(f"Hermes API could not bind to {args.host}:{args.port}: {exc}")
+        _fail(f"Mia API could not bind to {args.host}:{args.port}: {exc}")
         return 1
     return 0
 
